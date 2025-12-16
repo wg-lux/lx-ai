@@ -1,0 +1,130 @@
+[project]
+authors = [
+  {name = "Thomas J. Lux", email = "lux_t1@ukw.de"},
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+dependencies = [
+  "pydantic>=2.10.6",
+  "pyyaml>=6.0.2",
+  "mypy>=1.19.1",
+  "pre-commit>=4.5.0",
+]
+description = "Database module based on lx-dtypes for research data management."
+keywords = [
+  "medical",
+  "data-models",
+  "pydantic",
+  "research",
+]
+license = {file = "LICENSE"}
+maintainers = [
+  {name = "Thomas J. Lux", email = "lux_t1@ukw.de"},
+]
+name = "lx-ai"
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.12,<3.13"
+version = "0.1.0"
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.3.0",
+  "flake8>=7.3.0",
+  "linkify-it-py>=2.0.3",
+  "myst-parser>=4.0.1",
+  "mypy>=1.16.0",
+  "pip>=25.2",
+  "pre-commit>=4.5.0",
+  "pytest>=9.0.2",
+  "pytest-cov>=6.1.1",
+  "pytest-env>=1.1.5",
+  "pytest-mypy-plugins>=3.2.0",
+  "pytest-xdist>=3.8.0",
+  "sphinx-autodoc-typehints>=3.5.2",
+  "sphinx-copybutton>=0.5.2",
+  "sphinx>=8.2.3,<9.0",
+  "furo>=2025.9.25",
+  "ruff>=0.14.8",
+  "twine>=6.2.0",
+]
+
+docs = [
+  "linkify-it-py>=2.0.3",
+  "myst-parser>=4.0.1",
+  "sphinx-autodoc-typehints>=3.5.2",
+  "sphinx-copybutton>=0.5.2",
+  "sphinx>=8.2.3,<9.0",
+  "furo>=2025.9.25",
+]
+
+[project.urls]
+Homepage = "https://info.coloreg.de"
+Repository = "https://github.com/wg-lux/lx-ai"
+
+[tool.mypy]
+exclude = '^(\.venv|venv|env)/'
+# plugins = ["pandera.mypy"]
+strict = true
+warn_unused_ignores = false
+
+[tool.pytest.ini_options]
+addopts = """
+    -n auto
+    --dist=loadscope
+    --cov=lx_ai
+    --cov-report=term-missing
+    --cov-report=xml
+    --cov-fail-under=70
+"""
+markers = [
+  "localfiles: depends on files present only on dev machines",
+]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.hatch.build]
+exclude = [
+  "tests",
+  "tests/**",
+]
+
+[tool.setuptools]
+packages = ["lx_ai"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["lx_ai"]
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "tests",
+  "tests/**",
+  "docs/production",
+  "docs/production/**",
+  "htmlcov",
+  "htmlcov/**",
+  "storage",
+  "storage/**",
+]
+
+[tool.uv]
+# Resolve for macOS, Linux and Windows
+environments = [
+  "sys_platform=='darwin'",
+  "sys_platform=='linux'",
+  "sys_platform=='win32'",
+]
