@@ -1,0 +1,4 @@
+[submodule "libs/lx-data-models"]
+	path = libs/lx-data-models
+	url = https://github.com/wg-lux/lx-data-models.git
+	branch = smartie
