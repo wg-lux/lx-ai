@@ -172,7 +172,12 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         assume_missing_is_negative=config.treat_unlabeled_as_negative,
     )
 
-    image_paths: List[str] = data["image_paths"]
+    #image_paths: List[str] = data["image_paths"]
+    
+    image_paths_str: List[str] = cast(List[str], data["image_paths"])
+    image_paths: List[Path] = [Path(p) for p in image_paths_str]
+
+    
     label_vectors: List[List[Optional[int]]] = data["label_vectors"]
     label_masks: List[List[int]] = data["label_masks"]
     labels_any: List[Any] = cast(List[Any], data["labels"])
@@ -261,6 +266,20 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
             label_masks=lm,
             image_size=spec.image_size,
         )
+    
+    # =========================
+# DEBUG: supervision sanity check
+# =========================
+    print("KNOWN total:", float(full_ds.masks.sum().item()))
+    print("POS total:", float((full_ds.labels * full_ds.masks).sum().item()))
+    pos_per_label = [
+    float(x) for x in (full_ds.labels * full_ds.masks).sum(dim=0)
+    ]
+    print("POS per label:", pos_per_label)
+
+    #print("POS per label:", (full_ds.labels * full_ds.masks).sum(dim=0).tolist())
+# =========================
+
 
     train_ds = EndoMultiLabelDataset(_subset_spec(full_spec, train_indices))
     val_ds = EndoMultiLabelDataset(_subset_spec(full_spec, val_indices))

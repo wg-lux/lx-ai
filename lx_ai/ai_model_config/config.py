@@ -158,6 +158,7 @@ class TrainingConfig(AppBaseModel):
         description="Defaults to training_root/runs.",
     )
 
+
     create_dirs: bool = Field(
         default=True,
         description="If True, create training_root/checkpoints_dir/runs_dir on validation.",
@@ -176,6 +177,7 @@ class TrainingConfig(AppBaseModel):
         description="Optional path to pretrained checkpoint (.pth).",
     )
 
+
     freeze_backbone: bool = Field(
         default=True,
         description="If True, backbone is frozen (head-only training).",
@@ -184,7 +186,7 @@ class TrainingConfig(AppBaseModel):
     # -------------------------------------------------------------------------
     # Training hyperparameters
     # -------------------------------------------------------------------------
-    num_epochs: int = Field(default=5, ge=1)
+    num_epochs: int = Field(default=35, ge=1)
     batch_size: int = Field(default=32, ge=1)
 
     val_split: float = Field(default=0.2, ge=0.0, le=1.0)
