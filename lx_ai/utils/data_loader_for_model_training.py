@@ -19,6 +19,7 @@ from typing import (
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from lx_dtypes.models.base_models.base_model import AppBaseModel
+from lx_ai.utils.db_loader_for_model_input import load_annotations_from_postgres
 
 # -----------------------------------------------------------------------------
 # Types: dataset kind dispatch (same idea as old AIDataSet constants)
@@ -307,6 +308,7 @@ def build_image_multilabel_dataset(
     dataset_uuid: str,
     annotations: Sequence[Any],
     labelset: Optional[Any] = None,
+    treat_unlabeled_as_negative:bool=True,
 ) -> ImageMultilabelDatasetDataDict:
     """
     Build an in-memory multilabel dataset for image classification.
@@ -331,9 +333,40 @@ def build_image_multilabel_dataset(
         labelset = _infer_labelset_from_annotations(annotations)
 
     labels_in_order: List[Any] = _labels_in_order_from_labelset(labelset, annotations)
+        # ------------------------------------------------------------------
+    # FILTER LABELS BY labelset.version (MATCH endoreg-db BEHAVIOR)
+    # ------------------------------------------------------------------
+    labelset_version = _get(labelset, "version", None)
+    if labelset_version is not None:
+        labels_in_order = [
+            lbl
+            for lbl in labels_in_order
+            if labelset_version in _get(lbl, "labelset_versions", [labelset_version])
+        ]
     num_labels = len(labels_in_order)
     if num_labels == 0:
         raise ValueError("LabelSet has no labels (num_labels == 0).")
+    
+        # ------------------------------------------------------------
+    # DROP LABELS WITH ZERO POSITIVE SAMPLES (MATCH endoreg-db)
+    # ------------------------------------------------------------
+    label_pos_counts: Dict[int, int] = defaultdict(int)
+    
+    for ann in annotations:
+        if bool(_get(ann, "value", False)):
+            lbl = _get(ann, "label", None)
+            if lbl is not None:
+                label_pos_counts[_label_key(lbl)] += 1
+    
+    labels_in_order = [
+        lbl for lbl in labels_in_order
+        if label_pos_counts.get(_label_key(lbl), 0) > 0
+    ]
+    
+    num_labels = len(labels_in_order)
+    if num_labels == 0:
+        raise ValueError("No labels with positive samples remain after filtering.")
+
 
     # Build label -> column index mapping
     label_index: Dict[int, int] = {}
@@ -344,7 +377,12 @@ def build_image_multilabel_dataset(
     anns_by_frame: Dict[int, List[Any]] = defaultdict(list)
     frames_order: List[int] = []
 
+    labels_seen: set[int] = set()
+
     for ann in annotations:
+        lbl = _get(ann, "label", None)
+        if lbl is not None:
+           labels_seen.add(_label_key(lbl))  
         frame = _get(ann, "frame", None)
         frame_id_any = _get(frame, "id", None)
         if not isinstance(frame_id_any, int):
@@ -376,12 +414,53 @@ def build_image_multilabel_dataset(
         frame_ids.append(frame_id)
         old_examination_ids.append(cast(Optional[int], _get(frame, "old_examination_id", None)))
 
-        file_path_raw = _require(frame, "file_path")
+        '''file_path_raw = _require(frame, "file_path")
         file_path = Path(str(file_path_raw)).expanduser().resolve()
+        image_paths.append(file_path)'''
+
+        frame_dir = _require(frame, "file_path")
+        relative_path = _require(frame, "relative_path")
+
+        file_path = (
+            Path(str(frame_dir))
+                 / Path(str(relative_path))
+            )
+        
+        file_path = file_path.expanduser().resolve()
         image_paths.append(file_path)
+
+
+        if not file_path.is_file():
+            raise FileNotFoundError(f"Image file not found: {file_path}"
+                                    f"(frame_dir={frame_dir}, relative_path={relative_path})")
 
         vec: List[Optional[int]] = [None] * num_labels
 
+        # Initialize as UNKNOWN (same as endoreg-db)
+        vec: List[Optional[int]] = [None] * num_labels
+        
+        # Fill from annotations on THIS frame
+        for ann in frame_annotations:
+            lbl = _get(ann, "label", None)
+            if lbl is None:
+                continue
+        
+            idx = label_index.get(_label_key(lbl))
+            if idx is None:
+                continue
+        
+            value = bool(_require(ann, "value"))
+            vec[idx] = 1 if value else 0
+        
+        # Optional closed-world assumption (ONLY per-frame)
+        if treat_unlabeled_as_negative:
+            for j in range(num_labels):
+                if vec[j] is None:
+                    vec[j] = 0
+
+        mask = [1 if v is not None else 0 for v in vec]
+
+        
         for ann in frame_annotations:
             lbl = _get(ann, "label", None)
             if lbl is None:
@@ -396,7 +475,9 @@ def build_image_multilabel_dataset(
             value = bool(value_raw)
             vec[idx] = 1 if value else 0
 
+
         mask: List[int] = [0 if v is None else 1 for v in vec]
+
 
         label_vectors.append(vec)
         label_masks.append(mask)

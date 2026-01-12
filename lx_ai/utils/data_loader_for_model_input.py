@@ -1,6 +1,8 @@
 # lx_ai/utils/data_loader_for_model_input.py
 from __future__ import annotations
 
+from lx_ai.utils.db_loader_for_model_input import load_annotations_from_postgres
+
 import argparse
 import json
 from dataclasses import dataclass
@@ -8,6 +10,17 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING, TypedDict
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
+from lx_ai.utils.data_loader_for_model_training import (
+    build_image_multilabel_dataset,
+)
+from lx_ai.ai_model_config.config import TrainingConfig
+
+
+from lx_ai.utils.db_loader_for_model_input import (
+    load_annotations_from_postgres,
+    load_labelset_from_postgres,
+)
+
 
 # -----------------------------------------------------------------------------
 # IMPORTANT (Pylance fix):
@@ -15,13 +28,15 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 # We keep runtime using your real AppBaseModel, but for static analysis we provide
 # a typed stand-in so fields like List[LabelInfo] don't become list[Unknown].
 # -----------------------------------------------------------------------------
-if TYPE_CHECKING:
+from lx_dtypes.models.base_models.base_model import AppBaseModel
+
+"""if TYPE_CHECKING:
     from pydantic import BaseModel as _TypedBaseModel
 
     class AppBaseModel(_TypedBaseModel):  # type: ignore[misc]
         model_config = ConfigDict(arbitrary_types_allowed=True)
 else:
-    from lx_dtypes.models.base_models.base_model import AppBaseModel
+    from lx_dtypes.models.base_models.base_model import AppBaseModel"""
 
 
 # -----------------------------------------------------------------------------
@@ -293,14 +308,8 @@ def _build_from_legacy_jsonl(
 # Public API (KEEP NAME STABLE like old project)
 # -----------------------------------------------------------------------------
 def build_dataset_for_training(
-    dataset: Optional[Dict[str, Any]] = None,
-    labelset: Optional[Dict[str, Any]] = None,
     *,
-    image_dir: Path = DEFAULT_IMAGE_DIR,
-    jsonl_path: Path = DEFAULT_JSONL_PATH,
-    labels_in_order: Sequence[str] = tuple(DEFAULT_LABELS),
-    assume_missing_is_negative: bool = True,
-    require_existing_files: bool = True,
+    config: TrainingConfig,
 ) -> ImageMultilabelDatasetDataDict:
     """
     Replacement for old Django build_dataset_for_training(dataset, labelset=None)
@@ -311,33 +320,33 @@ def build_dataset_for_training(
 
     Returns dict with same keys as old system.
     """
-    _ = dataset
-    _ = labelset
-
-    ds, stats = _build_from_legacy_jsonl(
-        image_dir=image_dir,
-        jsonl_path=jsonl_path,
-        labels_in_order=labels_in_order,
-        assume_missing_is_negative=assume_missing_is_negative,
-        require_existing_files=require_existing_files,
-    )
-
-    # Short runtime summary
-    if stats.unknown_labels_unique > 0:
-        print(
-            "[data_loader_for_model_input] WARNING: "
-            f"Found {stats.unknown_labels_count} unknown label mentions "
-            f"({stats.unknown_labels_unique} unique) not in labels_in_order. Ignored."
+    if config.data_source == "jsonl":
+        ds, _ = _build_from_legacy_jsonl(
+            image_dir=DEFAULT_IMAGE_DIR,
+            jsonl_path=config.jsonl_path,
+            labels_in_order=DEFAULT_LABELS,
+            assume_missing_is_negative=config.treat_unlabeled_as_negative,
+            require_existing_files=True,
         )
-    if stats.missing_files > 0:
-        print(f"[data_loader_for_model_input] WARNING: Skipped {stats.missing_files} records (missing files).")
+        return ds.to_ddict()
 
-    print(
-        f"[data_loader_for_model_input] Loaded {stats.kept}/{stats.total} samples "
-        f"from {str(jsonl_path)} (assume_missing_is_negative={assume_missing_is_negative})."
-    )
+    if config.data_source == "postgres":
+        annotations = load_annotations_from_postgres(
+            dataset_id=config.dataset_id
+        )
 
-    return ds.to_ddict()
+        labelset = load_labelset_from_postgres(
+            labelset_id=config.labelset_id,
+            labelset_version = config.labelset_version_to_train,)
+        
+        return build_image_multilabel_dataset(
+            dataset_uuid=config.dataset_uuid,
+            annotations=annotations,
+            labelset=labelset,
+            treat_unlabeled_as_negative=config.treat_unlabeled_as_negative,
+        )
+
+    raise ValueError(f"Unknown data_source={config.data_source!r}")
 
 
 # -----------------------------------------------------------------------------
@@ -368,6 +377,7 @@ def _cli() -> int:
         action="store_true",
         help="Do not skip records when image files are missing.",
     )
+    
 
     args = p.parse_args()
 

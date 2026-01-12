@@ -1,0 +1,45 @@
+# configs/train_sandbox_postgres.yaml
+
+dataset_uuid: sandbox_ds
+
+# ------------------------------
+# DATA SOURCE
+# ------------------------------
+data_source: postgres
+dataset_id: 1
+
+labelset_id: 2
+labelset_version_to_train: 2
+
+# EXACT endoreg-db semantics:
+# false → ignore unknowns (None)
+# true  → treat unknown as negative (0)
+treat_unlabeled_as_negative: true
+
+# ------------------------------
+# MODEL
+# ------------------------------
+backbone_name: gastro_rn50
+backbone_checkpoint: /home/admin/dev/lx-ai/data/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth
+freeze_backbone: true
+
+# ------------------------------
+# TRAINING
+# ------------------------------
+num_epochs: 5
+batch_size: 16
+
+val_split: 0.2
+test_split: 0.1
+
+lr_head: 0.001
+lr_backbone: 0.0001
+gamma_focal: 2.0
+alpha_focal: 0.25
+
+use_scheduler: true
+warmup_epochs: 2
+min_lr: 1.0e-6
+
+device: cuda
+random_seed: 42

@@ -118,6 +118,28 @@ class TrainingConfig(AppBaseModel):
         description="UUID of the AIDataSet definition to train on (lx_dtypes model).",
     )
 
+
+    # -------------------------------------------------------------------------
+    # Data source selection
+    # -------------------------------------------------------------------------
+    data_source: Literal["jsonl", "postgres"] = Field(
+        default="jsonl",
+        description="Where training data comes from.",
+    )
+    
+    # Used ONLY when data_source == 'postgres'
+    dataset_id: int | None = Field(
+        default=None,
+        description="AIDataSet.id in PostgreSQL (required for postgres mode).",
+    )
+    
+    # Used ONLY when data_source == 'jsonl'
+    jsonl_path: Path | None = Field(
+        default=None,
+    description="Path to legacy JSONL file (used in jsonl mode).",
+    )
+
+    labelset_id: int | None = None
     labelset_version_to_train: int = Field(
         default=DEFAULT_LABELSET_VERSION,
         ge=1,
@@ -319,3 +341,21 @@ class TrainingConfig(AppBaseModel):
         # Update updated_at whenever config is validated (nice for traceability)
         self.updated_at = _now_utc()
         return self
+    
+    @model_validator(mode="after")
+    def _validate_data_source(self) -> "TrainingConfig":
+        if self.data_source == "postgres":
+            if self.dataset_id is None:
+                raise ValueError("dataset_id must be set when data_source='postgres'")
+        if self.data_source == "jsonl":
+            if self.jsonl_path is None:
+                raise ValueError("jsonl_path must be set when data_source='jsonl'")
+        return self
+    
+    @model_validator(mode="after")
+    def _validate_labelset(self):
+        if self.data_source == "postgres" and self.labelset_id is None:
+            raise ValueError("labelset_id must be provided for postgres data source")
+        return self
+    
+
