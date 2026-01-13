@@ -12,6 +12,7 @@ from lx_dtypes.models.base_models.base_model import AppBaseModel
 from collections.abc import Mapping as AbcMapping
 
 from typing import Any, Dict, TypeGuard
+from lx_ai.utils.logging_utils import subsection
 
 # -----------------------------------------------------------------------------
 # Public types (keep trainer/config compatibility)
@@ -242,11 +243,11 @@ def _build_resnet50_backbone(
         missing = list(getattr(incompatible, "missing_keys", []))
         unexpected = list(getattr(incompatible, "unexpected_keys", []))
 
-        print("[Backbone] Loaded checkpoint into ResNet50:", str(checkpoint))
+        subsection("BACKBONE INITIALIZATION")
+        print(f"  Checkpoint loaded   : {checkpoint}")
         if missing:
-            print("[Backbone] Missing keys (ignored):", missing)
-        if unexpected:
-            print("[Backbone] Unexpected keys (ignored):", unexpected)
+            print(f"  Missing keys ignored: {len(missing)}")
+
 
     # Feature extractor: remove final fc
     backbone = nn.Sequential(*list(base.children())[:-1])  # [B, 2048, 1, 1]

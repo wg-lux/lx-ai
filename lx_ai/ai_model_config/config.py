@@ -283,7 +283,7 @@ class TrainingConfig(AppBaseModel):
         if isinstance(v, str):
             return Path(v).expanduser()
         raise TypeError("backbone_checkpoint must be a Path, str, or None")
-
+ 
     # -------------------------------------------------------------------------
     # Cross-field invariants & computed defaults (the “brain”)
     # -------------------------------------------------------------------------

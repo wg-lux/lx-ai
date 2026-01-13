@@ -18,7 +18,7 @@ from lx_ai.ai_model_matrics.metrics import MetricsResult, compute_metrics
 from lx_ai.ai_model.model_backbones import create_multilabel_model
 from lx_ai.utils.data_loader_for_model_input import build_dataset_for_training
 
-
+from lx_ai.utils.logging_utils import table_header, subsection
 # -----------------------------------------------------------------------------
 # Typed shapes (Pylance clarity)
 # -----------------------------------------------------------------------------
@@ -149,10 +149,24 @@ def groupwise_split_indices_by_examination(
     val_idx.sort()
     test_idx.sort()
 
-    print(
-        "[TRAIN] Group-wise split by old_examination_id: "
-        f"#groups={n_groups}, train_groups={len(train_g)}, val_groups={len(val_g)}, test_groups={len(test_g)}"
-    )
+    subsection("DATASET SPLIT (GROUP-WISE BY old_examination_id)")
+
+    table_header("Split", "Groups", "Percentage")
+    
+    total = n_groups
+    train_n = len(train_g)
+    val_n = len(val_g)
+    test_n = len(test_g)
+    
+    def _pct(x: int) -> float:
+        return 100.0 * x / total if total > 0 else 0.0
+    
+    print(f"{'Train':<12} {train_n:<10d} {_pct(train_n):>6.1f} %")
+    print(f"{'Validation':<12} {val_n:<10d} {_pct(val_n):>6.1f} %")
+    print(f"{'Test':<12} {test_n:<10d} {_pct(test_n):>6.1f} %")
+    print("-" * 80)
+    print(f"{'Total':<12} {total:<10d} {100.0:>6.1f} %")
+
     return train_idx, val_idx, test_idx
 
 
@@ -186,8 +200,10 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     frame_ids: List[int] = data.get("frame_ids", list(range(len(image_paths))))
     old_exam_ids: List[Optional[int]] = data.get("old_examination_ids", [None] * len(image_paths))
 
-    print(f"[TRAIN] dataset_uuid={config.dataset_uuid!r}")
-    print(f"[TRAIN] #samples (raw)={len(image_paths)}, #labels (raw)={len(labels_any)}")
+    subsection("DATASET SUMMARY")
+    print(f"  Dataset UUID        : {config.dataset_uuid}")
+    print(f"  Samples (frames)    : {len(image_paths)}")
+    print(f"  Labels (raw)        : {len(labels_any)}")
 
     (
         label_vectors,
@@ -202,9 +218,17 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         labelset=labelset_any,
     )
 
-    print(f"[TRAIN] Kept {len(labels_any)} labels after version filter.")
-    for new_idx, orig_idx in enumerate(kept_indices):
-        print(f"    [{new_idx}] (orig {orig_idx}) {_label_name(labels_any[new_idx])}")
+    subsection("LABEL SPACE (AFTER FILTERING)")
+    print(f"  Total labels kept: {len(labels_any)}\n")
+    
+    table_header("New idx", "Label ID", "Label name")
+    
+    for new_idx, lbl in enumerate(labels_any):
+        lbl_id = _get(lbl, "id", None)
+        name = _label_name(lbl)
+        print(f"{new_idx:<10} {str(lbl_id):<10} {name}")
+
+
 
     # Apply unlabeled semantics
     if config.treat_unlabeled_as_negative:
@@ -267,19 +291,6 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
             label_masks=lm,
             image_size=spec.image_size,
         )
-    
-    # =========================
-# DEBUG: supervision sanity check
-# =========================
-    print("KNOWN total:", float(full_ds.masks.sum().item()))
-    print("POS total:", float((full_ds.labels * full_ds.masks).sum().item()))
-    pos_per_label = [
-    float(x) for x in (full_ds.labels * full_ds.masks).sum(dim=0)
-    ]
-    print("POS per label:", pos_per_label)
-
-    #print("POS per label:", (full_ds.labels * full_ds.masks).sum(dim=0).tolist())
-# =========================
 
 
     train_ds = EndoMultiLabelDataset(_subset_spec(full_spec, train_indices))
@@ -307,7 +318,9 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
 
     # Class weights
     class_weights = compute_class_weights(full_ds.labels, full_ds.masks).to(device)
-    print("[TRAIN] class_weights (first 8):", _tensor_row_as_floats(class_weights, max_items=8))
+    subsection("CLASS WEIGHTS")
+    print("  First 8 weights:", _tensor_row_as_floats(class_weights, max_items=8))
+
 
     # Optimizer + scheduler
     head_params = list(model.classifier.parameters())
@@ -343,7 +356,6 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     with torch.no_grad():
         logits_dbg = model(imgs_dbg.to(device))
         probs_dbg = torch.sigmoid(logits_dbg)
-    print("[DEBUG] First sample probs (first 12):", _tensor_row_as_floats(probs_dbg[0], max_items=12))
 
     for epoch in range(1, config.num_epochs + 1):
         if scheduler is not None:
@@ -423,15 +435,16 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
             logits=all_val_logits, targets=all_val_targets, masks=all_val_masks, threshold=0.5
         )
 
+        subsection(f"EPOCH {epoch}/{config.num_epochs}")
         print(
             f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
             f"train_loss={train_loss:.4f} val_loss={val_loss:.4f} "
             f"val_f1={val_metrics['f1']:.4f} val_acc={val_metrics['accuracy']:.4f}"
         )
 
-        print("\n[VAL PER-LABEL METRICS]")
-        print(f"{'Label':20s} {'Prec':>8s} {'Rec':>8s} {'F1':>8s} {'Support':>8s}")
-        print("-" * 60)
+        subsection("VAL PER-LABEL METRICS")
+        table_header("Label", "Prec", "Rec", "F1", "Support")
+
         for j, stats in enumerate(val_metrics["per_label"]):
             name = _label_name(labels_any[j])
             p = stats["precision"]
@@ -485,15 +498,21 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         logits=all_test_logits, targets=all_test_targets, masks=all_test_masks, threshold=0.5
     )
 
+    subsection("TEST METRICS (FINAL)")
+    print(f"  Precision : {test_metrics['precision']:.4f}")
+    print(f"  Recall    : {test_metrics['recall']:.4f}")
+    print(f"  F1-score  : {test_metrics['f1']:.4f}")
+    print(f"  Accuracy  : {test_metrics['accuracy']:.4f}")
     print(
-        f"[TEST METRICS] Precision={test_metrics['precision']:.4f} Recall={test_metrics['recall']:.4f} "
-        f"F1={test_metrics['f1']:.4f} Acc={test_metrics['accuracy']:.4f} "
-        f"TP={test_metrics['tp']} FP={test_metrics['fp']} TN={test_metrics['tn']} FN={test_metrics['fn']}"
+        f"  TP / FP / TN / FN : "
+        f"{test_metrics['tp']} / {test_metrics['fp']} / "
+        f"{test_metrics['tn']} / {test_metrics['fn']}"
     )
 
-    print("\n[TEST PER-LABEL METRICS]")
-    print(f"{'Label':20s} {'Prec':>8s} {'Rec':>8s} {'F1':>8s} {'Support':>8s}")
-    print("-" * 60)
+
+    subsection("TEST PER-LABEL METRICS")
+    table_header("Label", "Prec", "Rec", "F1", "Support")
+
     for j, stats in enumerate(test_metrics["per_label"]):
         name = _label_name(labels_any[j])
         p = stats["precision"]
@@ -527,8 +546,5 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
 
     with meta_path.open("w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
-
-    print("[TRAIN] Saved model to:", str(model_path))
-    print("[TRAIN] Saved metadata to:", str(meta_path))
 
     return {"model_path": str(model_path), "meta_path": str(meta_path), "history": history}
