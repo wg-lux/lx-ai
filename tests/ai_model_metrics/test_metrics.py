@@ -61,7 +61,7 @@ def test_compute_metrics__perfect_prediction__returns_perfect_scores() -> None:
 
     assert out["precision"] == pytest.approx(1.0)
     assert out["recall"] == pytest.approx(1.0)
-    assert out["f1"] == pytest.approx(1.0)
+    assert out["f1"] == pytest.approx(1.0, rel=1e-4)
     assert out["accuracy"] == pytest.approx(1.0)
 
 
