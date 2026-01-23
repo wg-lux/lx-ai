@@ -293,13 +293,52 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         )
 
 
+    #train_ds = EndoMultiLabelDataset(_subset_spec(full_spec, train_indices))
+    #val_ds = EndoMultiLabelDataset(_subset_spec(full_spec, val_indices))
+    #test_ds = EndoMultiLabelDataset(_subset_spec(full_spec, test_indices))
+     
     train_ds = EndoMultiLabelDataset(_subset_spec(full_spec, train_indices))
-    val_ds = EndoMultiLabelDataset(_subset_spec(full_spec, val_indices))
-    test_ds = EndoMultiLabelDataset(_subset_spec(full_spec, test_indices))
+
+    val_ds = None
+    if len(val_indices) > 0:
+        val_ds = EndoMultiLabelDataset(
+            _subset_spec(full_spec, val_indices)
+        )
     
+    test_ds = None
+    if len(test_indices) > 0:
+        test_ds = EndoMultiLabelDataset(
+            _subset_spec(full_spec, test_indices)
+        )
+
+
+
+
+
+
+
     train_loader = DataLoader(train_ds, batch_size=config.batch_size, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=config.batch_size, shuffle=False, num_workers=4, pin_memory=True)
-    test_loader = DataLoader(test_ds, batch_size=config.batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    #val_loader = DataLoader(val_ds, batch_size=config.batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    #test_loader = DataLoader(test_ds, batch_size=config.batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    val_loader = None
+    if val_ds is not None:
+        val_loader = DataLoader(
+            val_ds,
+            batch_size=config.batch_size,
+            shuffle=False,
+            num_workers=4,
+            pin_memory=True,
+        )
+    
+    test_loader = None
+    if test_ds is not None:
+        test_loader = DataLoader(
+            test_ds,
+            batch_size=config.batch_size,
+            shuffle=False,
+            num_workers=4,
+            pin_memory=True,
+        )
 
     # Device
     if config.device == "auto":
@@ -396,33 +435,35 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         history["train_loss"].append(train_loss)
 
         # Val
-        model.eval()
-        val_loss_sum = 0.0
-        val_batches = 0
-        val_logits: List[torch.Tensor] = []
-        val_targets: List[torch.Tensor] = []
-        val_masks: List[torch.Tensor] = []
+        '''if val_loader is None:
 
-        with torch.no_grad():
-            for imgs, y, m in val_loader:
-                imgs = imgs.to(device, non_blocking=True)
-                y = y.to(device, non_blocking=True)
-                m = m.to(device, non_blocking=True)
-
-                logits = model(imgs)
-                loss = focal_loss_with_mask(
-                    logits=logits,
-                    targets=y,
-                    masks=m,
-                    class_weights=class_weights,
-                    alpha=config.alpha_focal,
-                    gamma=config.gamma_focal,
-                )
-                val_loss_sum += float(loss.item())
-                val_batches += 1
-                val_logits.append(logits)
-                val_targets.append(y)
-                val_masks.append(m)
+            model.eval()
+            val_loss_sum = 0.0
+            val_batches = 0
+            val_logits: List[torch.Tensor] = []
+            val_targets: List[torch.Tensor] = []
+            val_masks: List[torch.Tensor] = []
+    
+            with torch.no_grad():
+                for imgs, y, m in val_loader:
+                    imgs = imgs.to(device, non_blocking=True)
+                    y = y.to(device, non_blocking=True)
+                    m = m.to(device, non_blocking=True)
+    
+                    logits = model(imgs)
+                    loss = focal_loss_with_mask(
+                        logits=logits,
+                        targets=y,
+                        masks=m,
+                        class_weights=class_weights,
+                        alpha=config.alpha_focal,
+                        gamma=config.gamma_focal,
+                    )
+                    val_loss_sum += float(loss.item())
+                    val_batches += 1
+                    val_logits.append(logits)
+                    val_targets.append(y)
+                    val_masks.append(m)
 
         val_loss = val_loss_sum / max(val_batches, 1)
         history["val_loss"].append(val_loss)
@@ -433,14 +474,76 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
 
         val_metrics: MetricsResult = compute_metrics(
             logits=all_val_logits, targets=all_val_targets, masks=all_val_masks, threshold=0.5
-        )
+        )'''
+
+        # -------------------------
+        # Validation
+        # -------------------------
+        val_metrics = None
+        
+        if val_loader is not None:
+            model.eval()
+            val_loss_sum = 0.0
+            val_batches = 0
+            val_logits: List[torch.Tensor] = []
+            val_targets: List[torch.Tensor] = []
+            val_masks: List[torch.Tensor] = []
+        
+            with torch.no_grad():
+                for imgs, y, m in val_loader:
+                    imgs = imgs.to(device, non_blocking=True)
+                    y = y.to(device, non_blocking=True)
+                    m = m.to(device, non_blocking=True)
+        
+                    logits = model(imgs)
+                    loss = focal_loss_with_mask(
+                        logits=logits,
+                        targets=y,
+                        masks=m,
+                        class_weights=class_weights,
+                        alpha=config.alpha_focal,
+                        gamma=config.gamma_focal,
+                    )
+        
+                    val_loss_sum += float(loss.item())
+                    val_batches += 1
+                    val_logits.append(logits)
+                    val_targets.append(y)
+                    val_masks.append(m)
+        
+            val_loss = val_loss_sum / max(val_batches, 1)
+            history["val_loss"].append(val_loss)
+        
+            all_val_logits = torch.cat(val_logits, dim=0)
+            all_val_targets = torch.cat(val_targets, dim=0)
+            all_val_masks = torch.cat(val_masks, dim=0)
+        
+            val_metrics = compute_metrics(
+                logits=all_val_logits,
+                targets=all_val_targets,
+                masks=all_val_masks,
+                threshold=0.5,
+            )
+        else:
+            history["val_loss"].append(None)
+
 
         subsection(f"EPOCH {epoch}/{config.num_epochs}")
-        print(
-            f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
-            f"train_loss={train_loss:.4f} val_loss={val_loss:.4f} "
-            f"val_f1={val_metrics['f1']:.4f} val_acc={val_metrics['accuracy']:.4f}"
-        )
+        if val_metrics is not None:
+            print(
+                f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
+                f"train_loss={train_loss:.4f} "
+                f"val_loss={val_loss:.4f} "
+                f"val_f1={val_metrics['f1']:.4f} "
+                f"val_acc={val_metrics['accuracy']:.4f}"
+            )
+        else:
+            print(
+                f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
+                f"train_loss={train_loss:.4f} "
+                f"(validation disabled)"
+            )
+
 
         subsection("VAL PER-LABEL METRICS")
         table_header("Label", "Prec", "Rec", "F1", "Support")
