@@ -213,12 +213,6 @@ class TrainingConfig(AppBaseModel):
     val_split: float = Field(default=0.2, ge=0.0, le=1.0)
     test_split: float = Field(default=0.1, ge=0.0, le=1.0)
 
-    disable_validation: bool = Field(
-    default=False,
-    description="If True, validation dataset is not created even if val_split is 0.",
-)
-
-
     lr_head: float = Field(default=1e-3, gt=0)
     lr_backbone: float = Field(default=1e-4, gt=0)
 
@@ -362,22 +356,5 @@ class TrainingConfig(AppBaseModel):
     def _validate_labelset(self):
         if self.data_source == "postgres" and self.labelset_id is None:
             raise ValueError("labelset_id must be provided for postgres data source")
-        return self
-    
-
-    @model_validator(mode="after")
-    def _validate_validation_semantics(self) -> "TrainingConfig":
-        """
-        Validation must be explicit.
-    
-        Rules:
-        - If val_split == 0.0 and disable_validation is False -> error
-        - If disable_validation is True -> validation is skipped
-        """
-        if self.val_split == 0.0 and not self.disable_validation:
-            raise ValueError(
-                "val_split is 0.0 but disable_validation is False. "
-                "Either set val_split > 0 or set disable_validation=True."
-            )
         return self
     
