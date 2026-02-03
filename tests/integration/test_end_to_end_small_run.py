@@ -90,8 +90,11 @@ def test_end_to_end_small_run(tmp_path: Path, monkeypatch) -> None:
         num_epochs=1,
         batch_size=1,
         device="cpu",
+        val_split=0.34,
+        test_split=0.33,
         create_dirs=True,
-    )
+)
+
 
     # ------------------------------------------------------------
     # 6. Run training

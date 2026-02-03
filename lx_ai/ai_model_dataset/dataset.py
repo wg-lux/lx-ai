@@ -97,6 +97,7 @@ class MultiLabelDatasetSpec(AppBaseModel):
                     raise ValueError(f"label_masks[{i}][{j}] must be 0|1, got {x!r}")
         return v
 
+
     # ----------------------------
     # Cross-field invariants
     # ----------------------------

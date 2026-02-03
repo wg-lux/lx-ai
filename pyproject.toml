@@ -10,10 +10,18 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = [
-  "pydantic>=2.10.6",
   "pyyaml>=6.0.2",
   "mypy>=1.19.1",
   "pre-commit>=4.5.0",
+  "pydantic>=2.12.5",
+  "torch>=2.9.1",
+  "numpy>=2.3.5",
+  "torchvision>=0.24.1",
+  "psycopg[binary]>=3.3.2",
+  "pytest>=9.0.2",
+  "pytest-xdist>=3.8.0",
+  "pytest-cov>=7.0.0",
+  "lx-dtypes",
 ]
 description = "Database module based on lx-dtypes for research data management."
 keywords = [
@@ -127,4 +135,20 @@ environments = [
   "sys_platform=='darwin'",
   "sys_platform=='linux'",
   "sys_platform=='win32'",
+]
+
+[tool.uv.workspace]
+members = [
+    "libs/lx-data-models",
+]
+
+[tool.uv.sources]
+lx-dtypes = { workspace = true }
+
+[tool.coverage.run]
+omit = [
+  "lx_ai/run_training.py",
+  "lx_ai/utils/data_loader_for_model_training.py",
+  "lx_ai/utils/db_loader_for_model_input.py",
+  "lx_ai/ai_model/model_backbones.py"
 ]
