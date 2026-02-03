@@ -560,36 +560,48 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
                 print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
         print("-" * 60)
 
-    # Test
-    model.eval()
-    test_loss_sum = 0.0
-    test_batches = 0
-    test_logits: List[torch.Tensor] = []
-    test_targets: List[torch.Tensor] = []
-    test_masks: List[torch.Tensor] = []
+# -------------------------
+# Test
+# -------------------------
+    history["test_loss"] = None
+    
+    if test_loader is not None:
+        model.eval()
+        test_loss_sum = 0.0
+        test_batches = 0
+        test_logits: List[torch.Tensor] = []
+        test_targets: List[torch.Tensor] = []
+        test_masks: List[torch.Tensor] = []
+    
+        with torch.no_grad():
+            for imgs, y, m in test_loader:
+                imgs = imgs.to(device, non_blocking=True)
+                y = y.to(device, non_blocking=True)
+                m = m.to(device, non_blocking=True)
+    
+                logits = model(imgs)
+                loss = focal_loss_with_mask(
+                    logits=logits,
+                    targets=y,
+                    masks=m,
+                    class_weights=class_weights,
+                    alpha=config.alpha_focal,
+                    gamma=config.gamma_focal,
+                )
+    
+                test_loss_sum += float(loss.item())
+                test_batches += 1
+                test_logits.append(logits)
+                test_targets.append(y)
+                test_masks.append(m)
+    
+        test_loss = test_loss_sum / max(test_batches, 1)
+        history["test_loss"] = test_loss
+    else:
+        print("[TEST] Skipped (no test split)")
+    
 
-    with torch.no_grad():
-        for imgs, y, m in test_loader:
-            imgs = imgs.to(device, non_blocking=True)
-            y = y.to(device, non_blocking=True)
-            m = m.to(device, non_blocking=True)
-
-            logits = model(imgs)
-            loss = focal_loss_with_mask(
-                logits=logits,
-                targets=y,
-                masks=m,
-                class_weights=class_weights,
-                alpha=config.alpha_focal,
-                gamma=config.gamma_focal,
-            )
-            test_loss_sum += float(loss.item())
-            test_batches += 1
-            test_logits.append(logits)
-            test_targets.append(y)
-            test_masks.append(m)
-
-    test_loss = test_loss_sum / max(test_batches, 1)
+    #test_loss = test_loss_sum / max(test_batches, 1)
     history["test_loss"] = test_loss
     print(f"[TEST] test_loss={test_loss:.4f}")
 
