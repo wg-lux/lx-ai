@@ -18,6 +18,7 @@ treat_unlabeled_as_negative: true
 
 # ------------------------------
 # MODEL
+# Model options: 
 # ------------------------------
 backbone_name: gastro_rn50
 backbone_checkpoint: /home/admin/dev/lx-ai/data/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth
@@ -26,10 +27,10 @@ freeze_backbone: true
 # ------------------------------
 # TRAINING
 # ------------------------------
-num_epochs: 1
+num_epochs: 20
 batch_size: 16
 
-val_split: 0.2
+val_split: 0.1
 test_split: 0.1
 
 lr_head: 0.001

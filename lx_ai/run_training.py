@@ -1,5 +1,3 @@
-# lx_ai/run_training.py
-
 from pathlib import Path
 
 from lx_ai.ai_model_config.config import TrainingConfig
@@ -16,7 +14,7 @@ def main() -> None:
     cfg = TrainingConfig.from_yaml_file(
         Path("lx_ai/ai_model_config/train_sandbox_postgres.yaml")
     )
-
+    
     # -------------------------------------------------------------------------
     # Training start banner
     # -------------------------------------------------------------------------

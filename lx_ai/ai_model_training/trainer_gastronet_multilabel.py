@@ -564,6 +564,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
 # Test
 # -------------------------
     history["test_loss"] = None
+    test_metrics = None
     
     if test_loader is not None:
         model.eval()
@@ -597,21 +598,24 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     
         test_loss = test_loss_sum / max(test_batches, 1)
         history["test_loss"] = test_loss
+        all_test_logits = torch.cat(test_logits, dim=0)
+        all_test_targets = torch.cat(test_targets, dim=0)
+        all_test_masks = torch.cat(test_masks, dim=0)
+
+        test_metrics: MetricsResult = compute_metrics(
+        logits=all_test_logits, targets=all_test_targets, masks=all_test_masks, threshold=0.5
+    )
     else:
         print("[TEST] Skipped (no test split)")
     
 
     #test_loss = test_loss_sum / max(test_batches, 1)
-    history["test_loss"] = test_loss
+    #history["test_loss"] = test_loss
     print(f"[TEST] test_loss={test_loss:.4f}")
 
-    all_test_logits = torch.cat(test_logits, dim=0)
-    all_test_targets = torch.cat(test_targets, dim=0)
-    all_test_masks = torch.cat(test_masks, dim=0)
 
-    test_metrics: MetricsResult = compute_metrics(
-        logits=all_test_logits, targets=all_test_targets, masks=all_test_masks, threshold=0.5
-    )
+
+    
 
     subsection("TEST METRICS (FINAL)")
     print(f"  Precision : {test_metrics['precision']:.4f}")
