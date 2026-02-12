@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import ClassVar, Literal, Optional, TypedDict, cast
+from typing import ClassVar, Literal, Optional, TypedDict, cast, List
 
 from pydantic import AwareDatetime, ConfigDict, Field, field_serializer, field_validator, model_validator
 
@@ -55,6 +55,12 @@ def _find_repo_root_from_lx_ai(path: Path) -> Path:
 # -----------------------------------------------------------------------------
 class TrainingConfigDataDict(TypedDict):
     dataset_uuid: str
+
+    dataset_ids: Optional[List[int]] = None
+    train_bucket_ids: List[int]
+    val_bucket_ids: List[int]
+    test_bucket_ids: List[int]
+
     labelset_version_to_train: int
     treat_unlabeled_as_negative: bool
 
@@ -113,9 +119,40 @@ class TrainingConfig(AppBaseModel):
     # -------------------------------------------------------------------------
     # Dataset selection / semantics
     # -------------------------------------------------------------------------
+    # Dataset selection / semantics
     dataset_uuid: str = Field(
         ...,
         description="UUID of the AIDataSet definition to train on (lx_dtypes model).",
+    )
+    
+    dataset_ids: List[int] = Field(
+       default_factory=list,
+       description="List of dataset IDs used for training.",
+)
+
+
+    # Other fields remain the same...
+
+    # Buckets Configuration
+    num_buckets: int = Field(
+        default=4,
+        ge=2,
+        description="Number of buckets for splitting the data into train, validation, and test sets.",
+    )
+    
+    train_bucket_ids: List[int] = Field(
+        default_factory=lambda: [0, 1, 2],
+        description="List of bucket IDs for training data.",
+    )
+    
+    val_bucket_ids: List[int] = Field(
+        default_factory=lambda: [3],
+        description="List of bucket IDs for validation data.",
+    )
+    
+    test_bucket_ids: List[int] = Field(
+        default_factory=lambda: [4],
+        description="List of bucket IDs for test data.",
     )
 
 
@@ -128,10 +165,10 @@ class TrainingConfig(AppBaseModel):
     )
     
     # Used ONLY when data_source == 'postgres'
-    dataset_id: int | None = Field(
+    '''dataset_id: int | None = Field(
         default=None,
         description="AIDataSet.id in PostgreSQL (required for postgres mode).",
-    )
+    )'''
     
     # Used ONLY when data_source == 'jsonl'
     jsonl_path: Path | None = Field(
@@ -345,16 +382,31 @@ class TrainingConfig(AppBaseModel):
     @model_validator(mode="after")
     def _validate_data_source(self) -> "TrainingConfig":
         if self.data_source == "postgres":
-            if self.dataset_id is None:
-                raise ValueError("dataset_id must be set when data_source='postgres'")
+            if not self.dataset_ids:  # Check for dataset_ids instead of dataset_id
+                raise ValueError("dataset_ids must be provided when data_source='postgres'")
         if self.data_source == "jsonl":
             if self.jsonl_path is None:
                 raise ValueError("jsonl_path must be set when data_source='jsonl'")
         return self
+
     
     @model_validator(mode="after")
     def _validate_labelset(self):
         if self.data_source == "postgres" and self.labelset_id is None:
             raise ValueError("labelset_id must be provided for postgres data source")
+        return self
+    
+    # Modify validation logic for dataset_ids
+    @model_validator(mode="after")
+    def _validate_dataset_ids(self) -> "TrainingConfig":
+        # Ensure that dataset_ids are provided if using 'postgres' as data source
+        if self.data_source == "postgres":
+            if not self.dataset_ids:
+                raise ValueError("dataset_ids must be provided when data_source='postgres'")
+        
+        # Ensure dataset_ids are in the correct form (list of integers)
+        if isinstance(self.dataset_ids, int):
+            self.dataset_ids = [self.dataset_ids]  # Convert to a list if a single ID is passed
+        
         return self
     

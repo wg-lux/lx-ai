@@ -4,7 +4,7 @@ import os
 import psycopg
 from typing import Any, Dict, List
 
-def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
+def load_annotations_from_postgres(dataset_ids: List[int]) -> List[dict]:
     import psycopg
     import os
 
@@ -14,26 +14,36 @@ def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
         with open(pw_file, "r") as f:
             password = f.read().strip()
 
+    datasets = []
+    
+    # Iterate over each dataset_id
+    for dataset_id in dataset_ids:
+        password = None
+        pw_file = os.getenv("DEV_DB_PASSWORD_FILE")
+        if pw_file:
+            with open(pw_file, "r") as f:
+                password = f.read().strip()
+
     sql = """
-    SELECT
-        f.id                    AS frame_id,
-        f.relative_path         AS file_path,
-        vf.frame_dir            AS frame_dir,
-        f.old_examination_id    AS old_examination_id,
-        l.id                    AS label_id,
-        l.name                  AS label_name,
-        a.value                 AS value
-    FROM endoreg_db_aidataset_image_annotations dai
-    JOIN endoreg_db_imageclassificationannotation a
-        ON a.id = dai.imageclassificationannotation_id
-    JOIN endoreg_db_frame f
-        ON f.id = a.frame_id
-    JOIN endoreg_db_videofile vf
-        ON vf.id = f.video_id
-    JOIN endoreg_db_label l
-        ON l.id = a.label_id
-    WHERE dai.aidataset_id = %s
-    """
+        SELECT
+            f.id                    AS frame_id,
+            f.relative_path         AS file_path,
+            vf.frame_dir            AS frame_dir,
+            f.old_examination_id    AS old_examination_id,
+            l.id                    AS label_id,
+            l.name                  AS label_name,
+            a.value                 AS value
+        FROM endoreg_db_aidataset_image_annotations dai
+        JOIN endoreg_db_imageclassificationannotation a
+            ON a.id = dai.imageclassificationannotation_id
+        JOIN endoreg_db_frame f
+            ON f.id = a.frame_id
+        JOIN endoreg_db_videofile vf
+            ON vf.id = f.video_id
+        JOIN endoreg_db_label l
+            ON l.id = a.label_id
+        WHERE dai.aidataset_id = %s
+        """
 
     rows: list[dict] = []
 
@@ -64,6 +74,7 @@ def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
                         "value": row[6],
                     }
                 )
+        datasets.extend(rows)
 
     return rows
 

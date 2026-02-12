@@ -1,13 +1,11 @@
-# configs/train_sandbox_postgres.yaml
-
 dataset_uuid: sandbox_ds
 
 # ------------------------------
 # DATA SOURCE
 # ------------------------------
 data_source: postgres
-dataset_id: 1
-
+dataset_ids:  # Allow multiple datasets in the future
+  - 1  # Currently, only dataset 1 is used
 labelset_id: 2
 labelset_version_to_train: 2
 
@@ -18,7 +16,7 @@ treat_unlabeled_as_negative: true
 
 # ------------------------------
 # MODEL
-# Model options: 
+# Model options:
 # ------------------------------
 backbone_name: gastro_rn50
 backbone_checkpoint: /home/admin/dev/lx-ai/data/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth
@@ -30,9 +28,24 @@ freeze_backbone: true
 num_epochs: 20
 batch_size: 16
 
-val_split: 0.1
-test_split: 0.1
+# Data Split Configuration
+val_split: 0.1  # 10% for validation
+test_split: 0.1  # 10% for testing
 
+# Specify number of buckets (for splitting data)
+num_buckets: 4  # Four buckets
+
+# Bucket IDs for each data role
+train_bucket_ids:
+  - 0
+  - 1
+  - 2  # Assigning 3 buckets for training
+val_bucket_ids:
+  - 3  # 1 bucket for validation
+test_bucket_ids:
+  - 4  # 1 bucket for testing (could adjust as per your split)
+
+# Learning Rate Configuration
 lr_head: 0.001
 lr_backbone: 0.0001
 gamma_focal: 2.0

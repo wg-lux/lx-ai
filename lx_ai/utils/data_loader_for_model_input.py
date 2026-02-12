@@ -332,7 +332,7 @@ def build_dataset_for_training(
 
     if config.data_source == "postgres":
         annotations = load_annotations_from_postgres(
-            dataset_id=config.dataset_id
+            dataset_ids=config.dataset_ids
         )
 
         labelset = load_labelset_from_postgres(
