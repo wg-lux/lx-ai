@@ -1,3 +1,4 @@
+#lx_ai/utils/db_loader_for_model_input.py
 from __future__ import annotations
 
 import os
@@ -15,68 +16,63 @@ def load_annotations_from_postgres(dataset_ids: List[int]) -> List[dict]:
             password = f.read().strip()
 
     datasets = []
-    
-    # Iterate over each dataset_id
+
+    #print(f"Loading annotations for dataset_ids: {dataset_ids}")  # Debugging: Print the dataset IDs being loaded    
+        # Iterate over each dataset_id
     for dataset_id in dataset_ids:
-        password = None
-        pw_file = os.getenv("DEV_DB_PASSWORD_FILE")
-        if pw_file:
-            with open(pw_file, "r") as f:
-                password = f.read().strip()
-
-    sql = """
-        SELECT
-            f.id                    AS frame_id,
-            f.relative_path         AS file_path,
-            vf.frame_dir            AS frame_dir,
-            f.old_examination_id    AS old_examination_id,
-            l.id                    AS label_id,
-            l.name                  AS label_name,
-            a.value                 AS value
-        FROM endoreg_db_aidataset_image_annotations dai
-        JOIN endoreg_db_imageclassificationannotation a
-            ON a.id = dai.imageclassificationannotation_id
-        JOIN endoreg_db_frame f
-            ON f.id = a.frame_id
-        JOIN endoreg_db_videofile vf
-            ON vf.id = f.video_id
-        JOIN endoreg_db_label l
-            ON l.id = a.label_id
-        WHERE dai.aidataset_id = %s
-        """
-
-    rows: list[dict] = []
-
-    #  CORRECT: cursor is created unconditionally
-    with psycopg.connect(
-        host=os.getenv("DEV_DB_HOST"),
-        port=int(os.getenv("DEV_DB_PORT")),
-        dbname=os.getenv("DEV_DB_NAME"),
-        user=os.getenv("DEV_DB_USER"),
-        password=password,
-        sslmode="disable",
-    ) as conn:
-        with conn.cursor() as cur:
-            cur.execute(sql, (dataset_id,))
-            for row in cur.fetchall():
-                rows.append(
-                    {
-                        "frame": {
-                            "id": row[0],
-                            "relative_path": row[1],
-                            "file_path": row[2],
-                            "old_examination_id": row[3],
-                        },
-                        "label": {
-                            "id": row[4],
-                            "name": row[5],
-                        },
-                        "value": row[6],
-                    }
-                )
+        sql = """
+            SELECT
+                f.id                    AS frame_id,
+                f.relative_path         AS file_path,
+                vf.frame_dir            AS frame_dir,
+                f.old_examination_id    AS old_examination_id,
+                l.id                    AS label_id,
+                l.name                  AS label_name,
+                a.value                 AS value
+            FROM endoreg_db_aidataset_image_annotations dai
+            JOIN endoreg_db_imageclassificationannotation a
+                ON a.id = dai.imageclassificationannotation_id
+            JOIN endoreg_db_frame f
+                ON f.id = a.frame_id
+            JOIN endoreg_db_videofile vf
+                ON vf.id = f.video_id
+            JOIN endoreg_db_label l
+                ON l.id = a.label_id
+            WHERE dai.aidataset_id = %s
+            """
+    
+        rows: list[dict] = []
+    
+        #  CORRECT: cursor is created unconditionally
+        with psycopg.connect(
+            host=os.getenv("DEV_DB_HOST"),
+            port=int(os.getenv("DEV_DB_PORT")),
+            dbname=os.getenv("DEV_DB_NAME"),
+            user=os.getenv("DEV_DB_USER"),
+            password=password,
+            sslmode="disable",
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (dataset_id,))
+                for row in cur.fetchall():
+                    rows.append(
+                        {
+                            "frame": {
+                                "id": row[0],
+                                "relative_path": row[1],
+                                "file_path": row[2],
+                                "old_examination_id": row[3],
+                            },
+                            "label": {
+                                "id": row[4],
+                                "name": row[5],
+                            },
+                            "value": row[6],
+                        }
+                    )
         datasets.extend(rows)
 
-    return rows
+    return datasets
 
 def load_labelset_from_postgres(
     *,

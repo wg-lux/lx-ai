@@ -4,8 +4,12 @@ dataset_uuid: sandbox_ds
 # DATA SOURCE
 # ------------------------------
 data_source: postgres
-dataset_ids:  # Allow multiple datasets in the future
-  - 1  # Currently, only dataset 1 is used
+
+dataset_ids:
+  - 1  # Even if it's just one, it should be wrapped in a list
+  #- 2  # Uncomment for multiple dataset IDs
+
+
 labelset_id: 2
 labelset_version_to_train: 2
 

@@ -1,3 +1,4 @@
+#lx_ai/run_training.py
 from pathlib import Path
 
 from lx_ai.ai_model_config.config import TrainingConfig
@@ -21,6 +22,13 @@ def main() -> None:
     section("TRAINING START")
 
     subsection("CONFIG")
+    if isinstance(cfg.dataset_ids, list):
+        for dataset_id in cfg.dataset_ids:
+            print(f"  Dataset Id     : {dataset_id}")
+    else:
+        print(f"  Dataset Id     : {cfg.dataset_ids}")
+
+   
     print(f"  Dataset UUID          : {cfg.dataset_uuid}")
     print(f"  Data source           : {cfg.data_source}")
     print(f"  Labelset              : id={cfg.labelset_id}, version={cfg.labelset_version_to_train}")

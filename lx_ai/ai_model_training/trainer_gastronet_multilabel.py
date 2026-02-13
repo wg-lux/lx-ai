@@ -183,19 +183,29 @@ def _tensor_row_as_floats(x: torch.Tensor, max_items: int = 12) -> List[float]:
 
 def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     #####
+    print(f"Dataset Id: {config.dataset_ids}")
         # Load datasets based on dataset_ids
+    
     datasets = load_datasets(config.dataset_ids)
+    #datasets = load_datasets(config.dataset_ids)
+    print(f"Loaded datasets (top 10): {datasets[:2]}")
     
     # Merge datasets into one
-    merged_data = merge_datasets(datasets)
-    
+    #merged_data = merge_datasets(datasets)
+    #print("Merged dataset length:", len(merged_data))  # Debugging: Print the length of the merged dataset
+   # print("merged data in train_gastronet_multilabely", merged_data[:5])  # Debugging: Print the first few entries of the merged dataset to verify its structure
     # Perform bucket assignment based on unique identifiers (exam_id, frame_id)
-    buckets = split_data_into_buckets(merged_data, num_buckets=config.num_buckets)
-    
+
+    #print(f"Data before bucket splitting:,{datasets[:5]}", type(datasets))  # Debugging: Print the first few entries of the data before bucket splitting
+    buckets = split_data_into_buckets(datasets, num_buckets=config.num_buckets)
+
+
+    #print(f"Bucket distribution after split_data_into_buckets", buckets, type(buckets))
     # Divide the data into training, validation, and test sets based on bucket roles
     train_data = []
     val_data = []
     test_data = []
+    
     for bucket_id, samples in buckets.items():
         if bucket_id in config.train_bucket_ids:
             train_data.extend(samples)
@@ -287,7 +297,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         label_vectors = cleaned_vectors
         label_masks = cleaned_masks
 
-    # Split
+    
     '''train_indices, val_indices, test_indices = groupwise_split_indices_by_examination(
         frame_ids=frame_ids,
         old_examination_ids=old_exam_ids,
@@ -296,7 +306,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         seed=config.random_seed,
     )'''
     # Replace `groupwise_split_indices_by_examination` with `split_data_into_buckets`
-    train_indices, val_indices, test_indices = split_data_into_buckets(merged_data, num_buckets=config.num_buckets)
+    train_indices, val_indices, test_indices = buckets
 
 
     # Build specs (Pylance OK because MultiLabelDatasetSpec.image_paths is Sequence[Path])
