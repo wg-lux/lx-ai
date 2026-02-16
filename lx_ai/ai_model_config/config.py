@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import ClassVar, Literal, Optional, TypedDict, cast
+from typing import ClassVar, Literal, Optional, List, TypedDict, cast
 
 from pydantic import AwareDatetime, ConfigDict, Field, field_serializer, field_validator, model_validator
 from lx_ai.ai_model_split.bucket_splitter import BucketSplitPolicy
@@ -129,10 +129,16 @@ class TrainingConfig(AppBaseModel):
     )
     
     # Used ONLY when data_source == 'postgres'
-    dataset_id: int | None = Field(
+    '''dataset_id: int | None = Field(
         default=None,
         description="AIDataSet.id in PostgreSQL (required for postgres mode).",
-    )
+    )'''
+
+    dataset_ids: List[int] | None = Field(
+        default=None,
+        description="List of AIDataSet.id values in PostgreSQL (required for postgres mode).",
+   )
+
     
     # Used ONLY when data_source == 'jsonl'
     jsonl_path: Path | None = Field(
@@ -352,12 +358,13 @@ class TrainingConfig(AppBaseModel):
     @model_validator(mode="after")
     def _validate_data_source(self) -> "TrainingConfig":
         if self.data_source == "postgres":
-            if self.dataset_id is None:
-                raise ValueError("dataset_id must be set when data_source='postgres'")
+            if not self.dataset_ids:
+                raise ValueError("dataset_ids must be provided when data_source='postgres'")
         if self.data_source == "jsonl":
             if self.jsonl_path is None:
                 raise ValueError("jsonl_path must be set when data_source='jsonl'")
         return self
+
     
     @model_validator(mode="after")
     def _validate_labelset(self):

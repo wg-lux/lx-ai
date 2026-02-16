@@ -364,9 +364,15 @@ def build_dataset_for_training(
 
 
     if config.data_source == "postgres":
-        annotations = load_annotations_from_postgres(
+        all_annotations = []
+        '''annotations = load_annotations_from_postgres(
             dataset_id=config.dataset_id
-        )
+        )'''
+        for ds_id in config.dataset_ids:
+            anns = load_annotations_from_postgres(dataset_id=ds_id)
+            all_annotations.extend(anns)
+        
+        annotations = all_annotations
 
         labelset = load_labelset_from_postgres(
             labelset_id=config.labelset_id,
