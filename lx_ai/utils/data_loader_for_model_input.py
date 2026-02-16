@@ -343,6 +343,15 @@ def build_dataset_for_training(
             old_examination_ids=ds["old_examination_ids"],
             policy=config.bucket_policy,
         )
+
+        from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrity
+
+        verify_bucket_integrity(
+            frame_ids=ds["frame_ids"],
+            old_examination_ids=ds["old_examination_ids"],
+            bucket_ids=bucket_ids,
+        )
+
         
         ds["train_indices"] = train_idx
         ds["val_indices"] = val_idx
@@ -378,6 +387,15 @@ def build_dataset_for_training(
             old_examination_ids=ds["old_examination_ids"],
             policy=config.bucket_policy,
         )
+
+        from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrity
+
+        verify_bucket_integrity(
+            frame_ids=ds["frame_ids"],
+            old_examination_ids=ds["old_examination_ids"],
+            bucket_ids=bucket_ids,
+        )
+
         
         ds["train_indices"] = train_idx
         ds["val_indices"] = val_idx
