@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import ClassVar, Literal, Optional, TypedDict, cast
 
 from pydantic import AwareDatetime, ConfigDict, Field, field_serializer, field_validator, model_validator
+from lx_ai.ai_model_split.bucket_splitter import BucketSplitPolicy
 
 from lx_dtypes.models.base_models.base_model import AppBaseModel
 
@@ -227,6 +228,12 @@ class TrainingConfig(AppBaseModel):
     random_seed: int = Field(default=42, ge=0)
 
     # -------------------------------------------------------------------------
+    # Stable bucket split policy (hash-based, immutable roles)
+    # -------------------------------------------------------------------------
+    bucket_policy: BucketSplitPolicy
+
+
+    # -------------------------------------------------------------------------
     # Meta field: useful for run metadata dumping (NOT created_at from base)
     # -------------------------------------------------------------------------
     updated_at: AwareDatetime = Field(default_factory=_now_utc)
@@ -328,8 +335,8 @@ class TrainingConfig(AppBaseModel):
                 d.mkdir(parents=True, exist_ok=True)
 
         # 5) Validate split ratios (must leave room for training set)
-        if self.val_split + self.test_split >= 1.0:
-            raise ValueError("val_split + test_split must be < 1.0")
+        #if self.val_split + self.test_split >= 1.0:
+        #    raise ValueError("val_split + test_split must be < 1.0")
 
         # 6) Validate checkpoint if provided
         if self.backbone_checkpoint is not None:

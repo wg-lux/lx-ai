@@ -27,7 +27,7 @@ freeze_backbone: true
 # ------------------------------
 # TRAINING
 # ------------------------------
-num_epochs: 20
+num_epochs: 4
 batch_size: 16
 
 val_split: 0.1
@@ -44,3 +44,9 @@ min_lr: 1.0e-6
 
 device: cuda
 random_seed: 42
+
+bucket_policy:
+  num_buckets: 5
+  validation_buckets: [3]
+  test_buckets: [4]
+

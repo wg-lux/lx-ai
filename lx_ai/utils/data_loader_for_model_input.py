@@ -81,6 +81,12 @@ class ImageMultilabelDatasetDataDict(TypedDict):
     labelset: LabelSetInfo
     frame_ids: List[int]
     old_examination_ids: List[Optional[int]]
+    train_indices: List[int]
+    val_indices: List[int]
+    test_indices: List[int]
+    bucket_policy: Dict[str, Any]
+    bucket_sizes: Dict[str, int]
+    role_sizes: Dict[str, int]
 
 
 def _empty_labelset_info() -> LabelSetInfo:
@@ -321,14 +327,32 @@ def build_dataset_for_training(
     Returns dict with same keys as old system.
     """
     if config.data_source == "jsonl":
-        ds, _ = _build_from_legacy_jsonl(
+        ds_model, _ = _build_from_legacy_jsonl(
             image_dir=DEFAULT_IMAGE_DIR,
             jsonl_path=config.jsonl_path,
             labels_in_order=DEFAULT_LABELS,
             assume_missing_is_negative=config.treat_unlabeled_as_negative,
             require_existing_files=True,
         )
-        return ds.to_ddict()
+        ds = ds_model.to_ddict()
+
+        from lx_ai.ai_model_split.bucket_splitter import split_indices_by_bucket_policy
+        
+        train_idx, val_idx, test_idx, bucket_ids, bucket_sizes, role_sizes = split_indices_by_bucket_policy(
+            frame_ids=ds["frame_ids"],
+            old_examination_ids=ds["old_examination_ids"],
+            policy=config.bucket_policy,
+        )
+        
+        ds["train_indices"] = train_idx
+        ds["val_indices"] = val_idx
+        ds["test_indices"] = test_idx
+        ds["bucket_policy"] = config.bucket_policy.to_meta()
+        ds["bucket_sizes"] = bucket_sizes
+        ds["role_sizes"] = role_sizes
+        
+        return ds
+
 
     if config.data_source == "postgres":
         annotations = load_annotations_from_postgres(
@@ -339,12 +363,31 @@ def build_dataset_for_training(
             labelset_id=config.labelset_id,
             labelset_version = config.labelset_version_to_train,)
         
-        return build_image_multilabel_dataset(
-            dataset_uuid=config.dataset_uuid,
-            annotations=annotations,
-            labelset=labelset,
-            treat_unlabeled_as_negative=config.treat_unlabeled_as_negative,
+        ds = build_image_multilabel_dataset(
+        dataset_uuid=config.dataset_uuid,
+        annotations=annotations,
+        labelset=labelset,
+        treat_unlabeled_as_negative=config.treat_unlabeled_as_negative,
+    )
+
+        # NEW: compute immutable split indices once, here (dataset building stage)
+        from lx_ai.ai_model_split.bucket_splitter import split_indices_by_bucket_policy
+        
+        train_idx, val_idx, test_idx, bucket_ids, bucket_sizes, role_sizes = split_indices_by_bucket_policy(
+            frame_ids=ds["frame_ids"],
+            old_examination_ids=ds["old_examination_ids"],
+            policy=config.bucket_policy,
         )
+        
+        ds["train_indices"] = train_idx
+        ds["val_indices"] = val_idx
+        ds["test_indices"] = test_idx
+        ds["bucket_policy"] = config.bucket_policy.to_meta()
+        ds["bucket_sizes"] = bucket_sizes
+        ds["role_sizes"] = role_sizes
+        
+        return ds
+
 
     raise ValueError(f"Unknown data_source={config.data_source!r}")
 
@@ -352,7 +395,7 @@ def build_dataset_for_training(
 # -----------------------------------------------------------------------------
 # CLI entrypoint (runnable script)
 # -----------------------------------------------------------------------------
-def _cli() -> int:
+'''def _cli() -> int:
     p = argparse.ArgumentParser(
         prog="data_loader_for_model_input",
         description="Build a multi-label training dataset dict from legacy JSONL + images directory.",
@@ -396,8 +439,9 @@ def _cli() -> int:
         assume_missing_is_negative=assume_missing_is_negative,
         require_existing_files=not args.no_require_existing_files,
     )
-    return 0
+    return 0'''
 
 
-if __name__ == "__main__":
+'''if __name__ == "__main__":
     raise SystemExit(_cli())
+'''

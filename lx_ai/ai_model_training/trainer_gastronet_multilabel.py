@@ -199,11 +199,21 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     labelset_any: Any = data["labelset"]
     frame_ids: List[int] = data.get("frame_ids", list(range(len(image_paths))))
     old_exam_ids: List[Optional[int]] = data.get("old_examination_ids", [None] * len(image_paths))
+    train_indices = cast(List[int], data["train_indices"])
+    val_indices = cast(List[int], data["val_indices"])
+    test_indices = cast(List[int], data["test_indices"])
+
 
     subsection("DATASET SUMMARY")
     print(f"  Dataset UUID        : {config.dataset_uuid}")
     print(f"  Samples (frames)    : {len(image_paths)}")
     print(f"  Labels (raw)        : {len(labels_any)}")
+
+    subsection("BUCKET SPLIT POLICY")
+    print("  Policy:", data.get("bucket_policy"))
+    print("  Bucket sizes:", data.get("bucket_sizes"))
+    print("  Role sizes:", data.get("role_sizes"))
+
 
     (
         label_vectors,
@@ -264,13 +274,17 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         label_masks = cleaned_masks
 
     # Split
-    train_indices, val_indices, test_indices = groupwise_split_indices_by_examination(
+    '''train_indices, val_indices, test_indices = groupwise_split_indices_by_examination(
         frame_ids=frame_ids,
         old_examination_ids=old_exam_ids,
         val_split=config.val_split,
         test_split=config.test_split,
         seed=config.random_seed,
     )
+    train_indices = cast(List[int], data["train_indices"])
+    val_indices = cast(List[int], data["val_indices"])
+    test_indices = cast(List[int], data["test_indices"])'''
+
 
     # Build specs (Pylance OK because MultiLabelDatasetSpec.image_paths is Sequence[Path])
     full_spec = MultiLabelDatasetSpec(
@@ -388,6 +402,13 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         print("[LR] No scheduler.")
 
     history: Dict[str, Any] = {"train_loss": [], "val_loss": [], "test_loss": None}
+    # ------------------------------------------------------------------
+    # Best model tracking (based on validation F1)
+    # ------------------------------------------------------------------
+    best_val_f1 = float("-inf")
+    best_epoch = None
+    best_state_dict = None
+
 
     # Debug first batch
     imgs_dbg, y_dbg, m_dbg = next(iter(train_loader))
@@ -544,6 +565,19 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
                 f"(validation disabled)"
             )
 
+            # -------------------------
+        # Track best validation F1
+        # -------------------------
+        current_f1 = float(val_metrics["f1"])
+        if current_f1 > best_val_f1:
+            best_val_f1 = current_f1
+            best_epoch = epoch
+            best_state_dict = {
+                k: v.detach().cpu().clone()
+                for k, v in model.state_dict().items()
+            }
+
+
 
         subsection("VAL PER-LABEL METRICS")
         table_header("Label", "Prec", "Rec", "F1", "Support")
@@ -559,6 +593,16 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
             else:
                 print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
         print("-" * 60)
+
+    # ------------------------------------------------------------------
+    # Restore best model (if validation was used)
+    # ------------------------------------------------------------------
+    if best_state_dict is not None:
+        model.load_state_dict(best_state_dict)
+        print(f"\n[MODEL SELECTION] Best validation F1 = {best_val_f1:.4f} "
+              f"at epoch {best_epoch}. Restored best model.")
+    else:
+        print("\n[MODEL SELECTION] No validation split. Using last epoch model.")
 
 # -------------------------
 # Test
@@ -654,6 +698,13 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
 
     torch.save(model.state_dict(), model_path)
 
+    if best_epoch is not None:
+        print(f"[SAVE] Saved BEST model from epoch {best_epoch} "
+              f"(val_f1={best_val_f1:.4f})")
+    else:
+        print("[SAVE] Saved last epoch model (no validation available)")
+
+
     meta: Dict[str, Any] = {
         "config": config.to_ddict(),
         "labelset": labelset_any,
@@ -661,6 +712,10 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         "used_label_indices_original": kept_indices,
         "history": history,
         "test_metrics_final": test_metrics,
+        "bucket_policy": data.get("bucket_policy"),
+        "bucket_sizes": data.get("bucket_sizes"),
+        "role_sizes": data.get("role_sizes"),
+
     }
 
     with meta_path.open("w", encoding="utf-8") as f:
