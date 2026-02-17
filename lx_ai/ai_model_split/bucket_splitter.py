@@ -4,7 +4,7 @@ from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator
-
+from lx_ai.utils.logging_utils import subsection
 from lx_ai.ai_model_split.bucket_hash import compute_bucket_id, compute_bucket_key
 
 
@@ -90,7 +90,17 @@ def split_indices_by_bucket_policy(
     test_idx: List[int] = []
     bucket_ids: List[int] = []
 
+    oldexamid_hash_count = 0
+    frameid_hash_count = 0
+
+
     for i, (fid, exam_id) in enumerate(zip(frame_ids, old_examination_ids)):
+        #key = compute_bucket_key(frame_id=int(fid), old_examination_id=exam_id)
+        if exam_id is not None:
+            oldexamid_hash_count += 1
+        else:
+            frameid_hash_count += 1
+        
         key = compute_bucket_key(frame_id=int(fid), old_examination_id=exam_id)
         b = compute_bucket_id(key=key, num_buckets=int(policy.num_buckets))
         bucket_ids.append(b)
@@ -111,5 +121,7 @@ def split_indices_by_bucket_policy(
         "val": int(len(val_idx)),
         "test": int(len(test_idx)),
     }
-
+    subsection("HASH KEY USAGE")
+    print(f"  Using old_examination_id : {oldexamid_hash_count}")
+    print(f"  Using frame_id fallback  : {frameid_hash_count}")
     return train_idx, val_idx, test_idx, bucket_ids, bucket_sizes, role_sizes

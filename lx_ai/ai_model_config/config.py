@@ -217,8 +217,8 @@ class TrainingConfig(AppBaseModel):
     num_epochs: int = Field(default=35, ge=1)
     batch_size: int = Field(default=32, ge=1)
 
-    val_split: float = Field(default=0.2, ge=0.0, le=1.0)
-    test_split: float = Field(default=0.1, ge=0.0, le=1.0)
+    #val_split: float = Field(default=0.2, ge=0.0, le=1.0)
+    #test_split: float = Field(default=0.1, ge=0.0, le=1.0)
 
     lr_head: float = Field(default=1e-3, gt=0)
     lr_backbone: float = Field(default=1e-4, gt=0)

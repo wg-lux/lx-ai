@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 from lx_ai.utils.db_loader_for_model_input import load_annotations_from_postgres
-
+from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrity
 import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING, TypedDict
-
+from lx_ai.ai_model_split.bucket_splitter import split_indices_by_bucket_policy
 from pydantic import ConfigDict, Field, field_validator, model_validator
 from lx_ai.utils.data_loader_for_model_training import (
     build_image_multilabel_dataset,
@@ -335,8 +335,6 @@ def build_dataset_for_training(
             require_existing_files=True,
         )
         ds = ds_model.to_ddict()
-
-        from lx_ai.ai_model_split.bucket_splitter import split_indices_by_bucket_policy
         
         train_idx, val_idx, test_idx, bucket_ids, bucket_sizes, role_sizes = split_indices_by_bucket_policy(
             frame_ids=ds["frame_ids"],
@@ -344,15 +342,20 @@ def build_dataset_for_training(
             policy=config.bucket_policy,
         )
 
-        from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrity
-
         verify_bucket_integrity(
             frame_ids=ds["frame_ids"],
             old_examination_ids=ds["old_examination_ids"],
             bucket_ids=bucket_ids,
         )
 
-        
+        from lx_ai.ai_model_split.split_sanity_checker import verify_split_disjointness
+
+        verify_split_disjointness(
+            train_indices=train_idx,
+            val_indices=val_idx,
+            test_indices=test_idx,
+       )   
+       
         ds["train_indices"] = train_idx
         ds["val_indices"] = val_idx
         ds["test_indices"] = test_idx
@@ -402,6 +405,13 @@ def build_dataset_for_training(
             bucket_ids=bucket_ids,
         )
 
+        from lx_ai.ai_model_split.split_sanity_checker import verify_split_disjointness
+
+        verify_split_disjointness(
+            train_indices=train_idx,
+            val_indices=val_idx,
+            test_indices=test_idx,
+        )
         
         ds["train_indices"] = train_idx
         ds["val_indices"] = val_idx
@@ -414,58 +424,3 @@ def build_dataset_for_training(
 
 
     raise ValueError(f"Unknown data_source={config.data_source!r}")
-
-
-# -----------------------------------------------------------------------------
-# CLI entrypoint (runnable script)
-# -----------------------------------------------------------------------------
-'''def _cli() -> int:
-    p = argparse.ArgumentParser(
-        prog="data_loader_for_model_input",
-        description="Build a multi-label training dataset dict from legacy JSONL + images directory.",
-    )
-    p.add_argument("--image-dir", type=str, default=str(DEFAULT_IMAGE_DIR))
-    p.add_argument("--jsonl-path", type=str, default=str(DEFAULT_JSONL_PATH))
-
-    mode = p.add_mutually_exclusive_group()
-    mode.add_argument(
-        "--assume-missing-is-negative",
-        action="store_true",
-        help="Missing labels become 0 with mask=1 (default).",
-    )
-    mode.add_argument(
-        "--assume-missing-is-unknown",
-        action="store_true",
-        help="Missing labels become None with mask=0 (unknown/ignored).",
-    )
-
-    p.add_argument(
-        "--no-require-existing-files",
-        action="store_true",
-        help="Do not skip records when image files are missing.",
-    )
-    
-
-    args = p.parse_args()
-
-    assume_missing_is_negative = True
-    if args.assume_missing_is_unknown:
-        assume_missing_is_negative = False
-    elif args.assume_missing_is_negative:
-        assume_missing_is_negative = True
-
-    _ = build_dataset_for_training(
-        dataset=None,
-        labelset=None,
-        image_dir=Path(args.image_dir),
-        jsonl_path=Path(args.jsonl_path),
-        labels_in_order=tuple(DEFAULT_LABELS),
-        assume_missing_is_negative=assume_missing_is_negative,
-        require_existing_files=not args.no_require_existing_files,
-    )
-    return 0'''
-
-
-'''if __name__ == "__main__":
-    raise SystemExit(_cli())
-'''

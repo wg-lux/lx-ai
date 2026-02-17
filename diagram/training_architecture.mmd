@@ -1,0 +1,123 @@
+flowchart TD
+
+%% =====================================================
+%% 1 CONFIGURATION
+%% =====================================================
+subgraph CONFIG
+A1[Load YAML Training Config]
+A2[Pydantic Validation]
+A3[Validate Bucket Split Policy]
+A1 --> A2 --> A3
+end
+
+%% =====================================================
+%% 2 DATA LOADING
+%% =====================================================
+subgraph DATA_LOADING
+B1{Data Source}
+B2[For Each dataset_id → Load Annotations]
+B3[Load JSONL Records]
+B4[Merge All Annotations]
+B1 -->|Postgres| B2 --> B4
+B1 -->|JSONL| B3 --> B4
+end
+
+A3 --> B1
+
+%% =====================================================
+%% 3 DATA PREPARATION
+%% =====================================================
+subgraph DATA_BUILD
+C1[Group Annotations By Frame ID]
+C2[Build Label Vectors and Label Masks]
+C4[Collect Frame IDs + Old Exam IDs]
+C1 --> C2 --> C4
+end
+
+B4 --> C1
+
+%% =====================================================
+%% 4 IMMUTABLE HASH SPLIT
+%% =====================================================
+subgraph STABLE_SPLIT
+D1{Old Exam ID Exists?}
+D2[Key = exam:ID]
+D3[Key = frame:ID]
+D4[SHA256 Hash<br/>Convert To Integer<br/>Modulo num_buckets]
+D7[Assign Train / Val / Test Indices]
+D8[Verify No Split Overlap]
+D1 -->|Yes| D2 --> D4
+D1 -->|No| D3 --> D4
+D4 --> D7 --> D8
+end
+
+C4 --> D1
+
+%% =====================================================
+%% 5 DATA PIPELINE
+%% =====================================================
+subgraph PIPELINE
+E1[Create Dataset Objects]
+E2[Create DataLoaders]
+E1 --> E2
+end
+
+D8 --> E1
+
+%% =====================================================
+%% 6 MODEL INITIALIZATION
+%% =====================================================
+subgraph MODEL_SETUP
+F1[Load Pretrained GastroNet Weights]
+F2[Replace Final Layer]
+end
+
+E2 --> F1 --> F2
+
+%% =====================================================
+%% 7 OPTIMIZATION SETUP
+%% =====================================================
+subgraph OPTIMIZATION
+G1[Compute Class Weights]
+G2[Initialize AdamW Optimizer]
+G3[Initialize Warmup + Cosine Scheduler]
+G1 --> G2 --> G3
+end
+
+F2 --> G1
+
+%% =====================================================
+%% 8 TRAINING LOOP
+%% =====================================================
+subgraph TRAINING_LOOP
+H0[Start Epoch Loop]
+H1[Warmup LR If Needed]
+H2[Forward Pass]
+H3[BCE With Logits + Focal Loss]
+H4[Backward Propagation]
+H5[Update Weights]
+H6[Scheduler Step]
+H7{Validation Available?}
+H8[Validation Forward Pass]
+H9[Compute Metrics With Sigmoid]
+H0 --> H1 --> H2 --> H3 --> H4 --> H5 --> H6 --> H7
+H7 -->|Yes| H8 --> H9 --> H0
+H7 -->|No| H0
+end
+
+G3 --> H0
+
+%% =====================================================
+%% 9 FINAL TEST & SAVE
+%% =====================================================
+subgraph TEST_AND_SAVE
+I1{Test Available?}
+I2[Run Test Evaluation]
+I3[Compute Final Metrics]
+I4[Save Model Weights]
+I5[Save Metadata + Bucket Policy]
+I1 -->|Yes| I2 --> I3 --> I4 --> I5
+I1 -->|No| I4 --> I5
+end
+
+H0 -->|Training Finished| I1

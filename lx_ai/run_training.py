@@ -27,6 +27,10 @@ def main() -> None:
     print(f"  Treat unlabeled as neg: {cfg.treat_unlabeled_as_negative}")
     print(f"  Device                : {cfg.device}")
     print(f"  Seed                  : {cfg.random_seed}")
+    print(f"  Epochs                : {cfg.num_epochs}")
+    print(f"  Model Name            : {cfg.backbone_name}")
+    print(f"  Backbone checkpoint   : {cfg.backbone_checkpoint}")
+
 
     # -------------------------------------------------------------------------
     # Run training (ALL heavy logs happen inside trainer)

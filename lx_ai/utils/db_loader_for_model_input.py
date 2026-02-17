@@ -5,9 +5,6 @@ import psycopg
 from typing import Any, Dict, List
 
 def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
-    import psycopg
-    import os
-
     password = None
     pw_file = os.getenv("DEV_DB_PASSWORD_FILE")
     if pw_file:

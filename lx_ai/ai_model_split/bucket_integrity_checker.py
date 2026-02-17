@@ -20,7 +20,7 @@ def verify_bucket_integrity(
     Raises RuntimeError if violation detected.
     """
 
-    section("BUCKET INTEGRITY CHECK", icon="🔒")
+    #section("BUCKET INTEGRITY CHECK", icon="🔒")
 
     # ---------------------------------------------------------
     # FRAME ID CHECK

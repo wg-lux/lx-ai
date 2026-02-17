@@ -247,6 +247,7 @@ def _build_resnet50_backbone(
         print(f"  Checkpoint loaded   : {checkpoint}")
         if missing:
             print(f"  Missing keys ignored: {len(missing)}")
+            print(f"    Examples: {missing[:5]}")
 
 
     # Feature extractor: remove final fc

@@ -181,12 +181,6 @@ def _tensor_row_as_floats(x: torch.Tensor, max_items: int = 12) -> List[float]:
 
 def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     data = build_dataset_for_training(config=config)
-    '''data = build_dataset_for_training(
-        dataset=None,
-        labelset=None,
-        assume_missing_is_negative=config.treat_unlabeled_as_negative,
-    )'''
-
     #image_paths: List[str] = data["image_paths"]
     
     image_paths_str: List[str] = cast(List[str], data["image_paths"])

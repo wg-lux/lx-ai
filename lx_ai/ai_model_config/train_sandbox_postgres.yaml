@@ -27,11 +27,11 @@ freeze_backbone: true
 # ------------------------------
 # TRAINING
 # ------------------------------
-num_epochs: 4
+num_epochs: 1
 batch_size: 16
 
-val_split: 0.1
-test_split: 0.1
+#val_split: 0.1
+#test_split: 0.1
 
 lr_head: 0.001
 lr_backbone: 0.0001
