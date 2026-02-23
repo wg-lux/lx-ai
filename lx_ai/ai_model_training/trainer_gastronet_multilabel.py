@@ -17,7 +17,8 @@ from lx_ai.ai_model.losses import compute_class_weights, focal_loss_with_mask
 from lx_ai.ai_model_matrics.metrics import MetricsResult, compute_metrics
 from lx_ai.ai_model.model_backbones import create_multilabel_model
 from lx_ai.utils.data_loader_for_model_input import build_dataset_for_training
-
+from lx_ai.training.bucket_logic import build_bucket_key, compute_bucket
+from lx_ai.training.bucket_snapshot import save_bucket_snapshot
 from lx_ai.utils.logging_utils import table_header, subsection
 # -----------------------------------------------------------------------------
 # Typed shapes (Pylance clarity)
@@ -208,6 +209,53 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     print("  Bucket sizes:", data.get("bucket_sizes"))
     print("  Role sizes:", data.get("role_sizes"))
 
+    # ---------------------------------------------------------
+    # BUILD BUCKET SNAPSHOT MAP
+    # ---------------------------------------------------------
+    
+    bucket_map: Dict[str, int] = {}
+    
+    num_buckets = config.bucket_policy.num_buckets
+    
+    for idx, (fid, exam_id) in enumerate(zip(frame_ids, old_exam_ids)):
+        key = build_bucket_key(
+            frame_id=fid,
+            old_examination_id=exam_id
+        )
+        bucket_id = compute_bucket(key, num_buckets)
+        bucket_map[key] = bucket_id
+
+    # ---------------------------------------------------------
+    # OPTIONAL SNAPSHOT SAVE
+    # ---------------------------------------------------------
+    
+    #save_choice = input("\nDo you want to save bucket snapshot? (y/n): ").strip().lower()
+    
+    if config.save_bucket_snapshot:
+    
+        train_bucket_ids = list(
+            set(bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
+                for i in train_indices)
+        )
+    
+        val_bucket_ids = list(
+            set(bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
+                for i in val_indices)
+        )
+    
+        test_bucket_ids = list(
+            set(bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
+                for i in test_indices)
+        )
+    
+        save_bucket_snapshot(
+            bucket_map=bucket_map,
+            train_buckets=train_bucket_ids,
+            val_buckets=val_bucket_ids,
+            test_buckets=test_bucket_ids,
+            dataset_ids=config.dataset_ids,
+            bucket_policy=config.bucket_policy.to_meta(),
+        )
 
     (
         label_vectors,

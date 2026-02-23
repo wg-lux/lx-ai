@@ -233,16 +233,24 @@ class TrainingConfig(AppBaseModel):
     device: DeviceName = Field(default="auto")
     random_seed: int = Field(default=42, ge=0)
 
+    bucket_policy: BucketSplitPolicy = Field(...)
+
     # -------------------------------------------------------------------------
     # Stable bucket split policy (hash-based, immutable roles)
     # -------------------------------------------------------------------------
-    bucket_policy: BucketSplitPolicy
-
-
+    save_bucket_snapshot: bool = Field(
+    default=False,
+    description="If True, save bucket snapshot for this run."
+)
     # -------------------------------------------------------------------------
     # Meta field: useful for run metadata dumping (NOT created_at from base)
     # -------------------------------------------------------------------------
     updated_at: AwareDatetime = Field(default_factory=_now_utc)
+
+    save_bucket_snapshot: bool = Field(
+    default=False,
+    description="If True, save bucket snapshot for this run."
+)
 
     # -------------------------------------------------------------------------
     # Serializer: ISO string for JSON metadata
