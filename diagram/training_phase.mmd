@@ -1,0 +1,41 @@
+flowchart TD
+
+    %% -------------------------
+    %% CORE FLOW
+    %% -------------------------
+    A[Input Images]
+    A --> B[Forward Pass Through Model]
+    B --> C[Logits]
+
+    C --> D[Focal Loss with Sigmoid Inside]
+    D --> E[Apply Mask Inside Loss]
+    E --> F[Compute Scalar Loss]
+
+    F --> G[Backward Pass Compute Gradients]
+    G --> H[AdamW Optimizer Step Update Weights]
+    H --> I[Learning Rate Scheduler Warmup Then Cosine Decay]
+
+    I --> B
+
+    %% -------------------------
+    %% EXAMPLES
+    %% -------------------------
+    C -.-> C1["Example logits: [2.1, -1.3, 0.2]"]
+
+    D -.-> D1["Sigmoid example: [0.89, 0.21, 0.55] and focal weighting"]
+
+    E -.-> E1["Mask example: [1, 0, 1] Ignore unknown labels"]
+
+    F -.-> F1["Scalar loss example: 0.437"]
+
+    G -.-> G1["Gradients computed: dLoss/dW"]
+
+    H -.-> H1["Weight update: W_new = W_old - lr * grad"]
+
+    I -.-> I1["LR schedule: Warmup then cosine decay"]
+
+    %% -------------------------
+    %% STYLE
+    %% -------------------------
+    classDef example stroke-dasharray: 5 5,stroke:#666,fill:#f9f9f9;
+    class C1,D1,E1,F1,G1,H1,I1 example;

@@ -1,0 +1,44 @@
+flowchart TD
+
+    A[Initialize Model]
+
+    A --> D1["Load ResNet50 (weights==none)"]
+  
+    D1 -->D3[Load GastroNet Pretrained Weights]
+
+    D3 --> E[Remove Final Fully Connected Layer]
+
+    E --> F[Add New Linear Classification Head]
+    F --> G[Freeze Backbone]
+
+    G -->H[Backbone requires_grad False]
+    
+    H --> J[Compute Class Weights]
+    
+    J --> K[Initialize AdamW Optimizer]
+    K --> L{Use Scheduler}
+
+    L -->|Yes| M[Warmup plus Cosine Annealing LR]
+    L -->|No| N[Fixed Learning Rate]
+
+    M --> O[Training Loop]
+    N --> O
+
+    O --> |Forward Pass Through Model|Q[Apply Sigmoid Activation]
+    Q --> R[Compute Focal Loss With Mask And Class Weights]
+
+    R --> |Backward Pass|T[Optimizer Step]
+
+    T --> U[Validation Phase]
+    U --> V[Compute Validation Metrics]
+
+    V --> W{Best F1 Score}
+    W -->|Yes| X[Store Best Model Weights]
+    W -->|No| Y[Continue Training]
+
+    X --> Z[Final Test Evaluation]
+    Y --> O
+
+    Z --> AA[Compute Test Metrics]
+    AA --> AB[Save Model File]
+    AA --> AC[Save Metadata JSON]
