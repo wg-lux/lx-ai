@@ -1,0 +1,45 @@
+flowchart TB
+
+%% ---------------------------
+%% DATA LAYER
+%% ---------------------------
+subgraph DATA LAYER
+A1[PostgreSQL Database]
+A2[Legacy JSONL Files]
+end
+
+%% ---------------------------
+%% PREPARATION LAYER
+%% ---------------------------
+subgraph DATA PREPARATION
+B[Dataset Builder<br/>• Image Loading<br/>• Label Structuring<br/>• Validation Rules]
+C[Secure Bucket Split<br/>• Exam-based Hashing<br/>• Train / Val / Test<br/>• No Data Leakage]
+end
+
+%% ---------------------------
+%% AI CORE
+%% ---------------------------
+subgraph AI ENGINE
+D[Deep Learning Model<br/>• CNN Backbone<br/>• Focal Loss<br/>• Class Weights]
+end
+
+%% ---------------------------
+%% RESULTS LAYER
+%% ---------------------------
+subgraph RESULTS
+E[Model Evaluation<br/>• Precision / Recall<br/>• F1 Score<br/>• Per-label Analysis]
+
+F1[Trained Model File]
+F2[Training Metadata]
+F3[Bucket Snapshot]
+end
+
+%% FLOW
+A1 --> B
+A2 --> B
+B -.-> C
+C --> D
+D --> E
+E -.-> F1
+E -.-> F2
+E -.-> F3
