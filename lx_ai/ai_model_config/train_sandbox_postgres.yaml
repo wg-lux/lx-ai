@@ -12,6 +12,35 @@ labelset_id: 2
 labelset_version_to_train: 2
 
 # EXACT endoreg-db semantics:
+# ===============================
+# Label handling modes
+# ===============================
+
+# CASE 1:
+# treat_unlabeled_as_negative: true
+# - If no annotation row exists → treat it as NEGATIVE.
+# - All labels are considered known.
+# - Full precision / recall / F1 / accuracy are computed.
+# - Closed-world assumption.
+
+# CASE 2:
+# treat_unlabeled_as_negative: false
+# AND dataset has explicit true negatives
+# - Only annotated labels are used.
+# - value=True → positive
+# - value=False → negative
+# - No row → ignored (unknown)
+# - Full precision / recall / F1 / accuracy are computed.
+# - Open-world / partial-label training.
+
+# CASE 3:
+# treat_unlabeled_as_negative: false
+# AND dataset has NO explicit true negatives
+# - Only annotated positives are used.
+# - No row → ignored (unknown)
+# - No known negatives exist.
+# - Precision / F1 / accuracy are not meaningful.
+# - System switches to positives-only evaluation.
 # false → ignore unknowns (None)
 # true  → treat unknown as negative (0)
 treat_unlabeled_as_negative: false

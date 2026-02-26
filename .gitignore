@@ -218,3 +218,6 @@ marimo/_lsp/
 __marimo__/
 
 buckets/
+
+# define schema in json 
+schema_for_input_to_model.json
