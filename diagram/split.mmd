@@ -1,32 +1,32 @@
 flowchart TD
 
-    A[Load Dataset IDs from Config]
+    A[**Load Dataset IDs**] --> B[**Fetch Frames from Database**]
 
-    A --> |Fetch Frames from Database|C{Does </br> old_examination_id </br> exist?}
+    B --> C{**old_examination_id</br> exists?**}
 
-    C -->|Yes| D[Use old_examination_id </br> as hash key]
-    C -->|No| E[Fallback to frame_id </br> as hash key]
+    C -->|**Yes**| D[**Use </br> old_examination_id</br> as key**]
+    C -->|**No**| E[**Use </br> frame_id</br> as key**]
 
-    D --> F[Compute Stable Hash Key]
+    D --> F[**Compute SHA256 hash**]
     E --> F
 
-    F --> G[Compute bucket_id = hash % num_buckets]
+    F --> G[**Compute bucket_id = hash mod num_buckets**]
 
-    G --> H{Bucket Policy Check}
+    G --> H{**Bucket Policy**}
 
-    H -->|bucket_id in validation_buckets| I[Assign to Validation Split]
-    H -->|bucket_id in test_buckets| J[Assign to Test Split]
-    H -->|Otherwise| K[Assign to Training Split]
+    H -->|**Validation bucket**| I[**Assign to Validation**]
+    H -->|**Test bucket**| J[**Assign to Test**]
+    H -->|**Else**| K[**Assign to Training**]
 
-    I --> L[Collect val_indices]
-    J --> M[Collect test_indices]
-    K --> N[Collect train_indices]
+    I --> L[**Collect val_indices**]
+    J --> M[**Collect test_indices**]
+    K --> N[**Collect train_indices**]
 
-    L --> O[Return Split Indices]
+    L --> O[**Return Split Indices**]
     M --> O
     N --> O
 
-    O --> P[Optional: Save Bucket Snapshot]
+    O --> P{**Save bucket</br> snapshot?**}
 
-    P --> Q[Save all_bucket_assignments.json]
-    P --> R[Save run_metadata.json]
+    P -->|**Yes**| Q[**Save all_bucket_assignments.json**]
+    P -->|**Yes**| R[**Save run_metadata.json**]

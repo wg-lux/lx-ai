@@ -14,7 +14,7 @@ labelset_version_to_train: 2
 # EXACT endoreg-db semantics:
 # false → ignore unknowns (None)
 # true  → treat unknown as negative (0)
-treat_unlabeled_as_negative: true
+treat_unlabeled_as_negative: false
 
 # ------------------------------
 # MODEL
