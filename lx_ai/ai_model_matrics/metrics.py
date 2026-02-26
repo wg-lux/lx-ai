@@ -165,3 +165,42 @@ def compute_metrics(
         "fn": fn,
         "per_label": per_label,
     }
+
+class PosOnlyMetrics(TypedDict):
+    recall_pos: float           # fraction of known positives predicted positive
+    mean_prob_pos: float        # mean sigmoid prob on known positives
+    num_pos: int                # number of known positives evaluated
+
+
+def compute_pos_only_metrics(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    masks: torch.Tensor,
+    threshold: float = 0.5,
+) -> PosOnlyMetrics:
+    """
+    Metrics that remain meaningful when there are NO known negatives.
+    Evaluates only on positions where (mask==1 and target==1).
+    """
+    _require_2d("logits", logits)
+    _require_2d("targets", targets)
+    _require_2d("masks", masks)
+    _require_same_shape("logits", logits, "targets", targets)
+    _require_same_shape("logits", logits, "masks", masks)
+
+    probs = torch.sigmoid(logits)
+    preds = (probs >= threshold).to(dtype=torch.int64)
+
+    t = targets.to(dtype=torch.int64)
+    m = masks.to(dtype=torch.int64)
+
+    pos_valid = (m == 1) & (t == 1)
+    num_pos = int(pos_valid.sum().item())
+
+    if num_pos == 0:
+        return {"recall_pos": 0.0, "mean_prob_pos": 0.0, "num_pos": 0}
+
+    recall_pos = float((preds[pos_valid] == 1).float().mean().item())
+    mean_prob_pos = float(probs[pos_valid].mean().item())
+
+    return {"recall_pos": recall_pos, "mean_prob_pos": mean_prob_pos, "num_pos": num_pos}

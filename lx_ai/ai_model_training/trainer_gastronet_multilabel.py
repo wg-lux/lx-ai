@@ -14,12 +14,14 @@ from torch.utils.data import DataLoader
 from lx_ai.ai_model_config.config import TrainingConfig
 from lx_ai.ai_model_dataset.dataset import EndoMultiLabelDataset, MultiLabelDatasetSpec
 from lx_ai.ai_model.losses import compute_class_weights, focal_loss_with_mask
-from lx_ai.ai_model_matrics.metrics import MetricsResult, compute_metrics
+from lx_ai.ai_model_matrics.metrics import MetricsResult, compute_metrics, compute_pos_only_metrics
 from lx_ai.ai_model.model_backbones import create_multilabel_model
 from lx_ai.utils.data_loader_for_model_input import build_dataset_for_training
 from lx_ai.training.bucket_logic import build_bucket_key, compute_bucket
 from lx_ai.training.bucket_snapshot import save_bucket_snapshot
 from lx_ai.utils.logging_utils import table_header, subsection
+from lx_ai.data_validation import write_data_validation_report
+from lx_ai.data_validation.distribution_report import print_data_validation_report_to_console
 # -----------------------------------------------------------------------------
 # Typed shapes (Pylance clarity)
 # -----------------------------------------------------------------------------
@@ -59,7 +61,6 @@ def _label_has_version(lbl: Any, version: int) -> bool:
                 return True
 
     return False
-
 
 def filter_labels_by_labelset_version(
     labels: Sequence[Any],
@@ -179,6 +180,10 @@ def _tensor_row_as_floats(x: torch.Tensor, max_items: int = 12) -> List[float]:
     out = [float(v) for v in cast(np.ndarray, arr)[:max_items]]
     return out
 
+def _has_any_known_negative(targets: torch.Tensor, masks: torch.Tensor) -> bool:
+    t = targets.to(dtype=torch.int64)
+    m = masks.to(dtype=torch.int64)
+    return bool(((m == 1) & (t == 0)).any().item())
 
 def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     data = build_dataset_for_training(config=config)
@@ -298,7 +303,29 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
             label_vectors[i] = new_vec
             label_masks[i] = new_mask
     else:
+        # Keep UNKNOWN labels as None (mask=0). Do NOT convert None -> 0 here,
+        # because MultiLabelDatasetSpec enforces None <-> mask==0 semantics.
         cleaned_vectors: List[List[Optional[int]]] = []
+        cleaned_masks: List[List[int]] = []
+
+        for vec in label_vectors:
+            v2: List[Optional[int]] = []
+            m2: List[int] = []
+
+            for x in vec:
+                if x is None:
+                    v2.append(None)
+                    m2.append(0)
+                else:
+                    v2.append(int(x))
+                    m2.append(1)
+
+            cleaned_vectors.append(v2)
+            cleaned_masks.append(m2)
+
+        label_vectors = cleaned_vectors
+        label_masks = cleaned_masks
+        '''cleaned_vectors: List[List[Optional[int]]] = []
         cleaned_masks: List[List[int]] = []
         for vec, mask in zip(label_vectors, label_masks):
             v2: List[Optional[int]] = []
@@ -313,7 +340,38 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
             cleaned_vectors.append(v2)
             cleaned_masks.append(m2)
         label_vectors = cleaned_vectors
-        label_masks = cleaned_masks
+        label_masks = cleaned_masks'''
+
+    ##
+        # ---------------------------------------------------------
+    # DATA VALIDATION REPORT (industry + research friendly)
+    # ---------------------------------------------------------
+    from lx_ai.data_validation import write_data_validation_report
+
+    reports_dir = Path(config.runs_dir) / f"dataset_{config.dataset_uuid}_reports"
+    json_path, label_csv, exam_csv = write_data_validation_report(
+    out_dir=reports_dir,
+    dataset_uuid=config.dataset_uuid,
+    labels_any=labels_any,
+    label_vectors=label_vectors,
+    label_masks=label_masks,
+    frame_ids=frame_ids,
+    old_examination_ids=old_exam_ids,
+    train_indices=train_indices,
+    val_indices=val_indices,
+    test_indices=test_indices,
+)
+
+    # Load JSON back for console printing
+    report = json.loads(json_path.read_text(encoding="utf-8"))
+    print_data_validation_report_to_console(report)
+
+    subsection("DATA VALIDATION REPORTS")
+    print(f"  JSON report : {json_path}")
+    print(f"  Label CSV   : {label_csv}")
+    print(f"  Exam CSV    : {exam_csv}")
+
+    ##
 
     # Split
     '''train_indices, val_indices, test_indices = groupwise_split_indices_by_examination(
@@ -543,6 +601,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         # Validation
         # -------------------------
         val_metrics = None
+        val_pos_metrics = None
         
         if val_loader is not None:
             model.eval()
@@ -581,17 +640,39 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
             all_val_targets = torch.cat(val_targets, dim=0)
             all_val_masks = torch.cat(val_masks, dim=0)
         
-            val_metrics = compute_metrics(
+            '''val_metrics = compute_metrics(
                 logits=all_val_logits,
                 targets=all_val_targets,
                 masks=all_val_masks,
                 threshold=0.5,
-            )
+            )'''
+            #
+            if (not config.treat_unlabeled_as_negative) and (not _has_any_known_negative(all_val_targets, all_val_masks)):
+                subsection("WARNING")
+                print("  No known negatives in validation (mask==1 & target==0 never occurs).")
+                print("  Precision/Accuracy/F1 are not meaningful in positives-only evaluation.")
+                val_pos_metrics = compute_pos_only_metrics(
+                    logits=all_val_logits,
+                    targets=all_val_targets,
+                    masks=all_val_masks,
+                    threshold=0.5,
+                )
+                val_metrics = None
+            else:
+                val_pos_metrics = None
+                val_metrics = compute_metrics(
+                    logits=all_val_logits,
+                    targets=all_val_targets,
+                    masks=all_val_masks,
+                    threshold=0.5,
+                )
+
+            #
         else:
             history["val_loss"].append(None)
 
 
-        subsection(f"EPOCH {epoch}/{config.num_epochs}")
+        '''subsection(f"EPOCH {epoch}/{config.num_epochs}")
         if val_metrics is not None:
             print(
                 f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
@@ -605,44 +686,92 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
                 f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
                 f"train_loss={train_loss:.4f} "
                 f"(validation disabled)"
+            )'''
+        #
+        subsection(f"EPOCH {epoch}/{config.num_epochs}")
+        if val_metrics is not None:
+            print(
+                f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
+                f"train_loss={train_loss:.4f} "
+                f"val_loss={val_loss:.4f} "
+                f"val_f1={val_metrics['f1']:.4f} "
+                f"val_acc={val_metrics['accuracy']:.4f}"
             )
+        elif val_pos_metrics is not None:
+            print(
+                f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
+                f"train_loss={train_loss:.4f} "
+                f"val_loss={val_loss:.4f} "
+                f"val_recall_pos={val_pos_metrics['recall_pos']:.4f} "
+                f"val_mean_prob_pos={val_pos_metrics['mean_prob_pos']:.4f} "
+                f"(positives-only eval)"
+            )
+        else:
+            print(
+                f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
+                f"train_loss={train_loss:.4f} "
+                f"(validation disabled)"
+            )
+
+        #
 
             # -------------------------
         # Track best validation F1
         # -------------------------
-        current_f1 = float(val_metrics["f1"])
-        if current_f1 > best_val_f1:
-            best_val_f1 = current_f1
-            best_epoch = epoch
-            best_state_dict = {
-                k: v.detach().cpu().clone()
-                for k, v in model.state_dict().items()
-            }
+                # -------------------------
+        # Track best model
+        # - true mode: maximize val F1
+        # - false + positives-only: minimize val loss
+        # -------------------------
+        if val_metrics is not None:
+            current_f1 = float(val_metrics["f1"])
+            if current_f1 > best_val_f1:
+                best_val_f1 = current_f1
+                best_epoch = epoch
+                best_state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        elif (not config.treat_unlabeled_as_negative) and (val_pos_metrics is not None):
+            # Use val_loss for selection when F1 is meaningless
+            if best_epoch is None or float(val_loss) < best_val_f1:
+                best_val_f1 = float(val_loss)  # reusing variable to store best loss
+                best_epoch = epoch
+                best_state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+                #
 
+      
 
-
-        subsection("VAL PER-LABEL METRICS")
-        table_header("Label", "Prec", "Rec", "F1", "Support")
-
-        for j, stats in enumerate(val_metrics["per_label"]):
-            name = _label_name(labels_any[j])
-            p = stats["precision"]
-            r = stats["recall"]
-            f = stats["f1"]
-            sup = stats["support"]
-            if p is None:
-                print(f"{name:20s} {'N/A':>8} {'N/A':>8} {'N/A':>8} {sup:8d}")
-            else:
-                print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
-        print("-" * 60)
+        #
+        if val_metrics is not None:
+            subsection("VAL PER-LABEL METRICS")
+            table_header("Label", "Prec", "Rec", "F1", "Support")
+        
+            for j, stats in enumerate(val_metrics["per_label"]):
+                name = _label_name(labels_any[j])
+                p = stats["precision"]
+                r = stats["recall"]
+                f = stats["f1"]
+                sup = stats["support"]
+                if p is None:
+                    print(f"{name:20s} {'N/A':>8} {'N/A':>8} {'N/A':>8} {sup:8d}")
+                else:
+                    print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
+            print("-" * 60)
+        else:
+            # Positives-only or validation disabled: do not print per-label precision/recall/F1 table
+            pass
+        #
 
     # ------------------------------------------------------------------
     # Restore best model (if validation was used)
     # ------------------------------------------------------------------
     if best_state_dict is not None:
         model.load_state_dict(best_state_dict)
-        print(f"\n[MODEL SELECTION] Best validation F1 = {best_val_f1:.4f} "
-              f"at epoch {best_epoch}. Restored best model.")
+        #
+        if config.treat_unlabeled_as_negative:
+            print(f"\n[MODEL SELECTION] Best validation F1 = {best_val_f1:.4f} "
+                  f"at epoch {best_epoch}. Restored best model.")
+        else:
+            print(f"\n[MODEL SELECTION] Positives-only eval: selected epoch {best_epoch} "
+                  f"with best val_loss={best_val_f1:.6f}. Restored best model.")
     else:
         print("\n[MODEL SELECTION] No validation split. Using last epoch model.")
 
@@ -688,46 +817,76 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         all_test_targets = torch.cat(test_targets, dim=0)
         all_test_masks = torch.cat(test_masks, dim=0)
 
-        test_metrics: MetricsResult = compute_metrics(
-        logits=all_test_logits, targets=all_test_targets, masks=all_test_masks, threshold=0.5
-    )
+        
+        #
+        #
+        if (not config.treat_unlabeled_as_negative) and (not _has_any_known_negative(all_test_targets, all_test_masks)):
+            subsection("WARNING (TEST)")
+            print("  No known negatives in test set.")
+            print("  Precision/Accuracy/F1 are not meaningful (positives-only evaluation).")
+        
+            test_metrics = None
+            test_pos_metrics = compute_pos_only_metrics(
+                logits=all_test_logits,
+                targets=all_test_targets,
+                masks=all_test_masks,
+                threshold=0.5,
+            )
+        else:
+            test_pos_metrics = None
+            test_metrics = compute_metrics(
+                logits=all_test_logits,
+                targets=all_test_targets,
+                masks=all_test_masks,
+                threshold=0.5,
+            )
     else:
         print("[TEST] Skipped (no test split)")
     
 
     #test_loss = test_loss_sum / max(test_batches, 1)
     #history["test_loss"] = test_loss
-    print(f"[TEST] test_loss={test_loss:.4f}")
+    if history["test_loss"] is not None:
+        print(f"[TEST] test_loss={history['test_loss']:.4f}")
 
 
 
     
 
     subsection("TEST METRICS (FINAL)")
-    print(f"  Precision : {test_metrics['precision']:.4f}")
-    print(f"  Recall    : {test_metrics['recall']:.4f}")
-    print(f"  F1-score  : {test_metrics['f1']:.4f}")
-    print(f"  Accuracy  : {test_metrics['accuracy']:.4f}")
-    print(
-        f"  TP / FP / TN / FN : "
-        f"{test_metrics['tp']} / {test_metrics['fp']} / "
-        f"{test_metrics['tn']} / {test_metrics['fn']}"
-    )
+    if test_metrics is not None:
+        print(f"  Precision : {test_metrics['precision']:.4f}")
+        print(f"  Recall    : {test_metrics['recall']:.4f}")
+        print(f"  F1-score  : {test_metrics['f1']:.4f}")
+        print(f"  Accuracy  : {test_metrics['accuracy']:.4f}")
+        print(
+            f"  TP / FP / TN / FN : "
+            f"{test_metrics['tp']} / {test_metrics['fp']} / "
+            f"{test_metrics['tn']} / {test_metrics['fn']}"
+        )
+    elif test_pos_metrics is not None:
+        print(f"  Recall (positives only) : {test_pos_metrics['recall_pos']:.4f}")
+        print(f"  Mean prob on positives  : {test_pos_metrics['mean_prob_pos']:.4f}")
+        print(f"  Num positives evaluated : {test_pos_metrics['num_pos']}")
+    else:
+        print("  Test skipped.")
 
 
-    subsection("TEST PER-LABEL METRICS")
-    table_header("Label", "Prec", "Rec", "F1", "Support")
-
-    for j, stats in enumerate(test_metrics["per_label"]):
-        name = _label_name(labels_any[j])
-        p = stats["precision"]
-        r = stats["recall"]
-        f = stats["f1"]
-        sup = stats["support"]
-        if p is None:
-            print(f"{name:20s} {'N/A':>8} {'N/A':>8} {'N/A':>8} {sup:8d}")
-        else:
-            print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
+    if test_metrics is not None:
+        subsection("TEST PER-LABEL METRICS")
+        table_header("Label", "Prec", "Rec", "F1", "Support")
+    
+        for j, stats in enumerate(test_metrics["per_label"]):
+            name = _label_name(labels_any[j])
+            p = stats["precision"]
+            r = stats["recall"]
+            f = stats["f1"]
+            sup = stats["support"]
+            if p is None:
+                print(f"{name:20s} {'N/A':>8} {'N/A':>8} {'N/A':>8} {sup:8d}")
+            else:
+                print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
+    
     print("-" * 60)
 
     # Save
@@ -741,8 +900,12 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     torch.save(model.state_dict(), model_path)
 
     if best_epoch is not None:
-        print(f"[SAVE] Saved BEST model from epoch {best_epoch} "
-              f"(val_f1={best_val_f1:.4f})")
+        if config.treat_unlabeled_as_negative:
+            print(f"[SAVE] Saved BEST model from epoch {best_epoch} "
+                  f"(val_f1={best_val_f1:.4f})")
+        else:
+            print(f"[SAVE] Saved BEST model from epoch {best_epoch} "
+                  f"(best_val_loss={best_val_f1:.6f})")
     else:
         print("[SAVE] Saved last epoch model (no validation available)")
 

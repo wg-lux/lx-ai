@@ -376,6 +376,9 @@ def build_dataset_for_training(
             all_annotations.extend(anns)
         
         annotations = all_annotations
+        pos = sum(1 for a in annotations if a.get("value") is True)
+        neg = sum(1 for a in annotations if a.get("value") is False)
+        print(f"[ANNOTATIONS] positives={pos} negatives={neg}")
 
         labelset = load_labelset_from_postgres(
             labelset_id=config.labelset_id,
