@@ -26,11 +26,12 @@ def main() -> None:
     print(f"  Data source           : {cfg.data_source}")
     print(f"  Labelset              : id={cfg.labelset_id}, version={cfg.labelset_version_to_train}")
     print(f"  Treat unlabeled as neg: {cfg.treat_unlabeled_as_negative}")
+    print(f"  Model Selected for Training: {cfg.backbone_name}")
     print(f"  Device                : {cfg.device}")
     print(f"  Seed                  : {cfg.random_seed}")
     print(f"  Epochs                : {cfg.num_epochs}")
-    print(f"  Model Name            : {cfg.backbone_name}")
     print(f"  Backbone checkpoint   : {cfg.backbone_checkpoint}")
+    print(f"  Total Buckets         : {cfg.bucket_policy.num_buckets}")
 
 
     # -------------------------------------------------------------------------

@@ -1,45 +1,88 @@
-flowchart TB
+flowchart TD
+    %% =========================
+    %% STYLE DEFINITIONS
+    %% =========================
+    classDef layer fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px,color:#0f172a,font-weight:bold
+    classDef box fill:#ffffff,stroke:#94a3b8,stroke-width:1.2px,color:#0f172a
+    classDef highlight fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0f172a,font-weight:bold
+    classDef result fill:#f8fafc,stroke:#6366f1,stroke-width:1.5px,color:#0f172a
 
-%% ---------------------------
-%% DATA LAYER
-%% ---------------------------
-subgraph DATA LAYER
-A1[PostgreSQL Database]
-A2[Legacy JSONL Files]
-end
+    %% =========================
+    %% DATA LAYER
+    %% =========================
+    subgraph DL[DATA LAYER]
+        direction LR
+        DB[(PostgreSQL Database)]
+        JSON[(Legacy JSONL Files)]
+    end
+    class DL layer
+    class DB,JSON box
 
-%% ---------------------------
-%% PREPARATION LAYER
-%% ---------------------------
-subgraph DATA PREPARATION
-B[Dataset Builder<br/>• Image Loading<br/>• Label Structuring<br/>• Validation Rules]
-C[Secure Bucket Split<br/>• Exam-based Hashing<br/>• Train / Val / Test<br/>• No Data Leakage]
-end
+    %% =========================
+    %% DATA PREPARATION
+    %% =========================
+    subgraph DP[DATA PREPARATION]
+        direction TB
+        
+        BUILDER["Dataset Builder
+        ─────────────
+        • Image Loading
+        • Label Structuring
+        • Validation Rules"]
 
-%% ---------------------------
-%% AI CORE
-%% ---------------------------
-subgraph AI ENGINE
-D[Deep Learning Model<br/>• CNN Backbone<br/>• Focal Loss<br/>• Class Weights]
-end
+        BUCKET["Stable Bucket Split
+        ─────────────
+        • Exam-based Hashing
+        • Train / Val / Test
+        • No Data Leakage"]
+    end
+    class DP layer
+    class BUILDER,BUCKET box
 
-%% ---------------------------
-%% RESULTS LAYER
-%% ---------------------------
-subgraph RESULTS
-E[Model Evaluation<br/>• Precision / Recall<br/>• F1 Score<br/>• Per-label Analysis]
+    %% =========================
+    %% AI ENGINE
+    %% =========================
+    subgraph AI[AI ENGINE]
+        direction TB
+        
+        MODEL["Deep Learning Model
+        ─────────────
+        • CNN Backbone
+        • Focal Loss
+        • Class Weights"]
+    end
+    class AI layer
+    class MODEL highlight
 
-F1[Trained Model File]
-F2[Training Metadata]
-F3[Bucket Snapshot]
-end
+    %% =========================
+    %% RESULTS
+    %% =========================
+    subgraph RS[RESULTS]
+        direction TB
+        
+        EVAL["Model Evaluation
+        ─────────────
+        • Precision / Recall
+        • F1 Score
+        • Per-label Analysis"]
 
-%% FLOW
-A1 --> B
-A2 --> B
-B -.-> C
-C --> D
-D --> E
-E -.-> F1
-E -.-> F2
-E -.-> F3
+        MODELFILE["Trained Model File"]
+        META["Training Metadata"]
+        SNAPSHOT["Bucket Snapshot"]
+    end
+    class RS layer
+    class EVAL result
+    class MODELFILE,META,SNAPSHOT box
+
+    %% =========================
+    %% FLOW CONNECTIONS
+    %% =========================
+    DB --> BUILDER
+    JSON --> BUILDER
+    BUILDER --> BUCKET
+    BUCKET --> MODEL
+    MODEL --> EVAL
+
+    EVAL --> MODELFILE
+    EVAL --> META
+    EVAL --> SNAPSHOT

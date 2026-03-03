@@ -1,0 +1,74 @@
+%%{init: {
+  "theme": "default",
+  "themeVariables": {
+    "fontSize": "22px",
+    "fontFamily": "Arial",
+    "primaryTextColor": "#0f172a"
+  }
+}}%%
+
+flowchart LR
+
+    %% =========================
+    %% STYLE DEFINITIONS
+    %% =========================
+    classDef data fill:#f8fafc,stroke:#207892,stroke-width:2px,color:#0f172a,font-size:23px
+    classDef system fill:#eef2ff,stroke:#6366f1,stroke-width:3px,color:#0f172a,font-size:23px
+    classDef model fill:#e0f2fe,stroke:#0284c7,stroke-width:3px,color:#0f172a,font-size:23px
+    classDef eval fill:#f0fdf4,stroke:#16a34a,stroke-width:3px,color:#0f172a,font-size:23px
+    classDef impact fill:#EAF2F8,stroke:#1e467c,stroke-width:2px,color:#0f172a,font-size:23px
+
+    %% =========================
+    %% DATA SOURCES
+    %% =========================
+    OLD[(Legacy Colonoscopy Dataset)]
+    NEW[(New Clinical Data Added Over Time)]
+    class OLD,NEW data
+
+    %% =========================
+    %% DATA FRAMEWORK
+    %% =========================
+    FRAMEWORK["Reusable AI Data Framework
+    ─────────────────────
+    • Incremental data integration
+    • Evolving label definitions
+    • Handles incomplete annotations
+    • Stable train/validation/test sets"]
+    class FRAMEWORK system
+
+    %% =========================
+    %% MODEL
+    %% =========================
+    MODEL(["Pretrained AI Model
+    Adapted & Retrained
+    on Local Data"])
+    class MODEL model
+
+    %% =========================
+    %% EVALUATION
+    %% =========================
+    EVAL["Stable & Reproducible Performance Evaluation"]
+    class EVAL eval
+
+    %% =========================
+    %% IMPACT
+    %% =========================
+    CLINICAL["Clinical Deployment"]
+    RESEARCH["Research & Continuous Improvement"]
+    SHARING["Model & Data Reusability"]
+
+    class CLINICAL,RESEARCH,SHARING impact
+
+    %% =========================
+    %% FLOW
+    %% =========================
+    OLD --> FRAMEWORK
+    NEW --> FRAMEWORK
+    FRAMEWORK --> MODEL
+    MODEL --> EVAL
+    EVAL --> CLINICAL
+    EVAL --> RESEARCH
+    EVAL --> SHARING
+
+    %% Incremental feedback
+    RESEARCH --> NEW

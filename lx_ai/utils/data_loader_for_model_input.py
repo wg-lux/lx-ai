@@ -1,26 +1,45 @@
 # lx_ai/utils/data_loader_for_model_input.py
 from __future__ import annotations
 
-from lx_ai.utils.db_loader_for_model_input import load_annotations_from_postgres
-from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrity
+# =============================================================================
+# Standard Library
+# =============================================================================
 import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING, TypedDict
-from lx_ai.ai_model_split.bucket_splitter import split_indices_by_bucket_policy
+
+# =============================================================================
+# Third-Party Libraries
+# =============================================================================
 from pydantic import ConfigDict, Field, field_validator, model_validator
-from lx_ai.utils.data_loader_for_model_training import (
-    build_image_multilabel_dataset,
-)
+
+# =============================================================================
+# Project: Configuration
+# =============================================================================
 from lx_ai.ai_model_config.config import TrainingConfig
 
-
+# =============================================================================
+# Project: Data Loading (Database)
+# =============================================================================
 from lx_ai.utils.db_loader_for_model_input import (
     load_annotations_from_postgres,
     load_labelset_from_postgres,
 )
 
+# =============================================================================
+# Project: Dataset Building
+# =============================================================================
+from lx_ai.utils.data_loader_for_model_training import (
+    build_image_multilabel_dataset,
+)
+
+# =============================================================================
+# Project: Splitting & Bucket Logic
+# =============================================================================
+from lx_ai.ai_model_split.bucket_splitter import split_indices_by_bucket_policy
+from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrity
 
 # -----------------------------------------------------------------------------
 # IMPORTANT (Pylance fix):
