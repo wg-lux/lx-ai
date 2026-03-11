@@ -14,14 +14,15 @@ dependencies = [
   "mypy>=1.19.1",
   "pre-commit>=4.5.0",
   "pydantic>=2.12.5",
-  "torch>=2.9.1",
+  "torch==2.5.1",
   "numpy>=2.3.5",
-  "torchvision>=0.24.1",
+  "torchvision==0.20.1",
   "psycopg[binary]>=3.3.2",
   "pytest>=9.0.2",
   "pytest-xdist>=3.8.0",
   "pytest-cov>=7.0.0",
   "lx-dtypes",
+  "endoreg-db==0.9.0.0",
 ]
 description = "Database module based on lx-dtypes for research data management."
 keywords = [
