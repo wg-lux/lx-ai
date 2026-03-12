@@ -145,7 +145,6 @@ celerybeat.pid
 
 # Environments
 .env
-.envrc
 .venv
 env/
 venv/
@@ -221,7 +220,6 @@ buckets/
 
 # define schema in json 
 schema_for_input_to_model.json
-secretspec.toml
 .vscode/
 dev_db.sqlite
 libs/lx-data-models
