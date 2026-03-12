@@ -22,8 +22,9 @@ dependencies = [
   "pytest-xdist>=3.8.0",
   "pytest-cov>=7.0.0",
   "endoreg-db==0.9.0.0",
-  "lx-dtypes @ git+https://github.com/wg-lux/lx-data-models.git"
+"lx-dtypes @ git+https://github.com/wg-lux/lx-data-models.git@8d74787a23c7de0ad10f0d905ea81c1a51d932a5"
 ]
+
 description = "Database module based on lx-dtypes for research data management."
 keywords = [
   "medical",
