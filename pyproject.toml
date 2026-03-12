@@ -21,8 +21,8 @@ dependencies = [
   "pytest>=9.0.2",
   "pytest-xdist>=3.8.0",
   "pytest-cov>=7.0.0",
-  "lx-dtypes",
   "endoreg-db==0.9.0.0",
+  "lx-dtypes @ git+https://github.com/wg-lux/lx-data-models.git"
 ]
 description = "Database module based on lx-dtypes for research data management."
 keywords = [
@@ -81,6 +81,7 @@ exclude = '^(\.venv|venv|env)/'
 strict = true
 warn_unused_ignores = false
 
+
 [tool.pytest.ini_options]
 addopts = """
     -n auto
@@ -107,6 +108,9 @@ exclude = [
   "tests",
   "tests/**",
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.setuptools]
 packages = ["lx_ai"]
@@ -138,13 +142,15 @@ environments = [
   "sys_platform=='win32'",
 ]
 
-[tool.uv.workspace]
-members = [
-    "libs/lx-data-models",
-]
+#[tool.uv.workspace]
+#members = [
+#    "libs/lx-data-models",
+#]
 
-[tool.uv.sources]
-lx-dtypes = { workspace = true }
+#[tool.uv.sources]
+#lx-dtypes = { workspace = true }
+
+
 
 [tool.coverage.run]
 omit = [
