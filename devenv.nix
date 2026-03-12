@@ -40,8 +40,8 @@ let
   
     HOME_DIR = config.secretspec.secrets.HOME_DIR;
     WORKING_DIR = config.secretspec.secrets.WORKING_DIR;
-    DATA_DIR = config.secretspec.secrets.DATA_DIR;
-    CONF_DIR = config.secretspec.secrets.CONF_DIR;
+    DATA_DIR = "/var/endoreg-service-user/data";
+    CONF_DIR = "/var/endoreg-service-user/lx-ai/conf";
 
     STORAGE_DIR = config.secretspec.secrets.DATA_DIR;
   
