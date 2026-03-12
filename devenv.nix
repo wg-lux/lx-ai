@@ -105,7 +105,7 @@ in
     '';
     lxai_training.exec = "           
     source .devenv/state/venv/bin/activate
-    secretspec run --provider env uv run python run_training.py";
+    secretspec run --provider env --quiet uv run python run_training.py";
 
     pyshell.exec = "uv run python manage.py shell";
 
