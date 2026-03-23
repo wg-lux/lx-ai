@@ -63,6 +63,19 @@ class AppConfig(BaseSettings):
 
 
 def load_config(env_file: Path | None = None) -> AppConfig:
-    if env_file and env_file.exists():
-        return AppConfig(_env_file=env_file)
     return AppConfig()
+
+@model_validator(mode="after")
+def debug_print(self) -> "AppConfig":
+    print("\n========== APP CONFIG DEBUG ==========")
+    print(f"DATA_DIR: {self.data_dir}")
+    print(f"CONF_DIR: {self.conf_dir}")
+    print(f"FRAME_DIR: {self.frame_dir}")
+    print(f"DJANGO_ENV: {os.getenv('DJANGO_ENV')}")
+    print(f"ENV DATA_DIR: {os.getenv('DATA_DIR')}")
+    print("======================================\n")
+    print(f"DB PASSWORD FILE: {self.db_password_file}")
+    print(f"DB PASSWORD LOADED: {bool(self.db_password)}")
+    return self
+
+db_backend: str = os.getenv("DB_BACKEND", "postgres")

@@ -13,6 +13,5 @@ DATABASES = {
         "PASSWORD": config.db_password,
         "HOST": config.db_host,
         "PORT": config.db_port,
-        
     }
 }

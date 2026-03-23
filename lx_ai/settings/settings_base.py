@@ -76,12 +76,13 @@ BASE_DIR = REPO_ROOT
 _settings_module = os.getenv("DJANGO_SETTINGS_MODULE", "")
 _is_dev_settings = _settings_module.endswith("settings_dev")
 
-if not _is_dev_settings:
+'''if not _is_dev_settings:
     _env_path = BASE_DIR / ".env.systemd"
 else:
     _env_path = BASE_DIR / ".env"
 
-config = load_config(env_file=_env_path if _env_path.exists() else None)
+config = load_config(env_file=_env_path if _env_path.exists() else None)'''
+config = load_config()
 
 DEBUG = config.debug
 
@@ -89,8 +90,21 @@ DATABASES = {
     "ENGINE": "sqlite",
     "NAME": BASE_DIR / "db.sqlite3",
 }
+
+print("\n========== SETTINGS DEBUG ==========")
+print(f"os.environ DATA_DIR: {os.getenv('DATA_DIR')}")
+print(f"os.environ CONF_DIR: {os.getenv('CONF_DIR')}")
+print(f"os.environ FRAME_DIR: {os.getenv('FRAME_DIR')}")
+print("====================================\n")
+
 DATA_DIR = config.data_dir
 CONF_DIR = config.conf_dir
+
+print("\n========== RESOLVED PATHS ==========")
+print(f"CONFIG DATA_DIR: {DATA_DIR}")
+print(f"CONFIG CONF_DIR: {CONF_DIR}")
+print(f"CONFIG FRAME_DIR (before logic): {config.frame_dir}")
+print("===================================\n")
 
 # Development should always use local frames
 if _is_dev_settings:
