@@ -1,0 +1,24 @@
+flowchart LR
+
+    Dataset --> LabelFiltering
+    LabelFiltering --> StableBucketSplit
+
+    StableBucketSplit --> TrainSet
+    StableBucketSplit --> ValSet
+    StableBucketSplit --> TestSet
+
+    TrainSet --> ModelInitialization
+    ModelInitialization --> ClassWeightComputation
+    ClassWeightComputation --> ModelTraining
+
+    ModelTraining --> ModelValidation
+    ValSet --> ModelValidation
+
+    ModelValidation --> BestModelSelection
+    BestModelSelection --> FinalTest
+
+    TestSet --> FinalTest
+
+    FinalTest --> Metrics
+    Metrics --> SavedModel
+    Metrics --> SavedMetadata

@@ -1,0 +1,45 @@
+flowchart LR
+
+    %% -------------------------
+    %% CORE FLOW
+    %% -------------------------
+    A[Logits]
+    A --> B[Sigmoid]
+    B --> C[Threshold >= 0.5]
+    C --> D[Predictions]
+
+    D --> E[Apply Mask]
+    E --> F[Compute TP FP TN FN]
+
+    F --> G[Precision]
+    F --> H[Recall]
+    F --> I[F1 Score]
+    F --> J[Accuracy]
+
+    G --> K[Per-label Metrics]
+    H --> K
+    I --> K
+    J --> K
+
+    %% -------------------------
+    %% EXAMPLES
+    %% -------------------------
+    A -.-> A1["Raw model outputs:[2.1, -1.3, 0.2]"]
+    B -.-> B1["Sigmoid:\n[0.89, 0.21, 0.55]\nConvert to probabilities"]
+    C -.-> C1["Threshold 0.5:\n[1, 0, 1]\nBinary decisions"]
+    D -.-> D1["Predictions per label\nMulti-label independent outputs"]
+    E -.-> E1["Mask example:\n[1, 0, 1]\nIgnore unknown labels"]
+    F -.-> F1["Counts:\nTP=10 FP=3\nTN=25 FN=5"]
+
+    G -.-> G1["Precision = TP / (TP + FP)\n10 / 13 = 0.77"]
+    H -.-> H1["Recall = TP / (TP + FN)\n10 / 15 = 0.67"]
+    I -.-> I1["F1 = 2PR/(P+R)\n0.71"]
+    J -.-> J1["Accuracy = (TP+TN)/All\n35 / 43"]
+
+    K -.-> K1["Computed per class\nEach label gets its own P,R,F1"]
+
+    %% -------------------------
+    %% STYLE
+    %% -------------------------
+    classDef example stroke-dasharray: 5 5,stroke:#666,fill:#f9f9f9;
+    class A1,B1,C1,D1,E1,F1,G1,H1,I1,J1,K1 example;

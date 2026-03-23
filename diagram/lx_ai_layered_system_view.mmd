@@ -1,0 +1,88 @@
+flowchart TD
+    %% =========================
+    %% STYLE DEFINITIONS
+    %% =========================
+    classDef layer fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px,color:#0f172a,font-weight:bold
+    classDef box fill:#ffffff,stroke:#94a3b8,stroke-width:1.2px,color:#0f172a
+    classDef highlight fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0f172a,font-weight:bold
+    classDef result fill:#f8fafc,stroke:#6366f1,stroke-width:1.5px,color:#0f172a
+
+    %% =========================
+    %% DATA LAYER
+    %% =========================
+    subgraph DL[DATA LAYER]
+        direction LR
+        DB[(PostgreSQL Database)]
+        JSON[(Legacy JSONL Files)]
+    end
+    class DL layer
+    class DB,JSON box
+
+    %% =========================
+    %% DATA PREPARATION
+    %% =========================
+    subgraph DP[DATA PREPARATION]
+        direction TB
+        
+        BUILDER["Dataset Builder
+        ─────────────
+        • Image Loading
+        • Label Structuring
+        • Validation Rules"]
+
+        BUCKET["Stable Bucket Split
+        ─────────────
+        • Exam-based Hashing
+        • Train / Val / Test
+        • No Data Leakage"]
+    end
+    class DP layer
+    class BUILDER,BUCKET box
+
+    %% =========================
+    %% AI ENGINE
+    %% =========================
+    subgraph AI[AI ENGINE]
+        direction TB
+        
+        MODEL["Deep Learning Model
+        ─────────────
+        • CNN Backbone
+        • Focal Loss
+        • Class Weights"]
+    end
+    class AI layer
+    class MODEL highlight
+
+    %% =========================
+    %% RESULTS
+    %% =========================
+    subgraph RS[RESULTS]
+        direction TB
+        
+        EVAL["Model Evaluation
+        ─────────────
+        • Precision / Recall
+        • F1 Score
+        • Per-label Analysis"]
+
+        MODELFILE["Trained Model File"]
+        META["Training Metadata"]
+        SNAPSHOT["Bucket Snapshot"]
+    end
+    class RS layer
+    class EVAL result
+    class MODELFILE,META,SNAPSHOT box
+
+    %% =========================
+    %% FLOW CONNECTIONS
+    %% =========================
+    DB --> BUILDER
+    JSON --> BUILDER
+    BUILDER --> BUCKET
+    BUCKET --> MODEL
+    MODEL --> EVAL
+
+    EVAL --> MODELFILE
+    EVAL --> META
+    EVAL --> SNAPSHOT

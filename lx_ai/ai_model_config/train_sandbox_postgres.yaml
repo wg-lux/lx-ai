@@ -1,0 +1,82 @@
+# configs/train_sandbox_postgres.yaml
+
+dataset_uuid: sandbox_ds
+
+# ------------------------------
+# DATA SOURCE
+# ------------------------------
+data_source: postgres
+dataset_ids: [1] #When new dataset comes:dataset_ids: [1, 2]
+
+labelset_id: 2
+labelset_version_to_train: 2
+
+# EXACT endoreg-db semantics:
+# ===============================
+# Label handling modes
+# ===============================
+
+# CASE 1:
+# treat_unlabeled_as_negative: true
+# - If no annotation row exists → treat it as NEGATIVE.
+# - All labels are considered known.
+# - Full precision / recall / F1 / accuracy are computed.
+# - Closed-world assumption.
+
+# CASE 2:
+# treat_unlabeled_as_negative: false
+# AND dataset has explicit true negatives
+# - Only annotated labels are used.
+# - value=True → positive
+# - value=False → negative
+# - No row → ignored (unknown)
+# - Full precision / recall / F1 / accuracy are computed.
+# - Open-world / partial-label training.
+
+# CASE 3:
+# treat_unlabeled_as_negative: false
+# AND dataset has NO explicit true negatives
+# - Only annotated positives are used.
+# - No row → ignored (unknown)
+# - No known negatives exist.
+# - Precision / F1 / accuracy are not meaningful.
+# - System switches to positives-only evaluation.
+# false → ignore unknowns (None)
+# true  → treat unknown as negative (0)
+treat_unlabeled_as_negative: false
+
+# ------------------------------
+# MODEL
+# Model options: 
+# ------------------------------
+backbone_name: gastro_rn50
+backbone_checkpoint: /home/admin/dev/lx-ai/data/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth
+freeze_backbone: true
+
+# ------------------------------
+# TRAINING
+# ------------------------------
+num_epochs: 2
+batch_size: 16
+
+#val_split: 0.1
+#test_split: 0.1
+
+lr_head: 0.001
+lr_backbone: 0.0001
+gamma_focal: 2.0
+alpha_focal: 0.25
+
+use_scheduler: true
+warmup_epochs: 2
+min_lr: 1.0e-6
+
+device: cuda
+random_seed: 42
+
+bucket_policy:
+  num_buckets: 5
+  validation_buckets: [3]
+  test_buckets: [4]
+
+save_bucket_snapshot: true

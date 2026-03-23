@@ -1,0 +1,32 @@
+flowchart TD
+
+    A[**Load Dataset IDs**] --> B[**Fetch Frames from Database**]
+
+    B --> C{**old_examination_id</br> exists?**}
+
+    C -->|**Yes**| D[**Use </br> old_examination_id</br> as key**]
+    C -->|**No**| E[**Use </br> frame_id</br> as key**]
+
+    D --> F[**Compute SHA256 hash**]
+    E --> F
+
+    F --> G[**Compute bucket_id = hash mod num_buckets**]
+
+    G --> H{**Bucket Policy**}
+
+    H -->|**Validation bucket**| I[**Assign to Validation**]
+    H -->|**Test bucket**| J[**Assign to Test**]
+    H -->|**Else**| K[**Assign to Training**]
+
+    I --> L[**Collect val_indices**]
+    J --> M[**Collect test_indices**]
+    K --> N[**Collect train_indices**]
+
+    L --> O[**Return Split Indices**]
+    M --> O
+    N --> O
+
+    O --> P{**Save bucket</br> snapshot?**}
+
+    P -->|**Yes**| Q[**Save all_bucket_assignments.json**]
+    P -->|**Yes**| R[**Save run_metadata.json**]

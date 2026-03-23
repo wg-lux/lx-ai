@@ -1,0 +1,92 @@
+flowchart TD
+
+    %% =========================
+    %% STYLE DEFINITIONS
+    %% =========================
+    classDef layer fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px,color:#0f172a,font-weight:bold
+    classDef box fill:#ffffff,stroke:#94a3b8,stroke-width:1.2px,color:#0f172a
+    classDef highlight fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0f172a,font-weight:bold
+    classDef result fill:#f8fafc,stroke:#6366f1,stroke-width:1.5px,color:#0f172a
+    classDef reuse fill:#eef2ff,stroke:#4f46e5,stroke-width:1.5px,color:#0f172a
+
+    %% =========================
+    %% DATA SOURCE
+    %% =========================
+    subgraph D1[Clinical Data Repository]
+        direction LR
+        LEGACY[(Previously Collected
+        Colonoscopy Videos)]
+        NEW[(Newly Recorded
+        Colonoscopy Videos)]
+    end
+    class D1 layer
+    class LEGACY,NEW box
+
+    %% =========================
+    %% DATA MANAGEMENT
+    %% =========================
+    subgraph D2[Dataset Management Framework]
+        direction TB
+        
+        LABELS["Flexible Label System
+        ─────────────
+        • Add new findings
+        • Keep historical annotations
+        • Handle incomplete labels"]
+
+        SPLIT["Stable Evaluation Split
+        ─────────────
+        • Fixed test data
+        • No data leakage
+        • Comparable results over time"]
+    end
+    class D2 layer
+    class LABELS,SPLIT box
+
+    %% =========================
+    %% AI TRAINING
+    %% =========================
+    subgraph D3[AI Model Adaptation]
+        direction TB
+        MODEL["Pretrained AI Model
+        Adapted to Local Data"]
+    end
+    class D3 layer
+    class MODEL highlight
+
+    %% =========================
+    %% OUTCOME
+    %% =========================
+    subgraph D4[Continuous Clinical AI Improvement]
+        direction TB
+        
+        EVAL["Transparent Performance Reporting
+        ─────────────
+        • Per-label results
+        • Annotation support shown
+        • Stable comparison over time"]
+
+        REUSE["Reusable AI Model"]
+        
+        HOSPITAL["Clinical Use in Hospitals"]
+        SCIENCE["Use by Scientific Staff"]
+        RESEARCH["Use in Research Centers"]
+    end
+    class D4 layer
+    class EVAL result
+    class REUSE reuse
+    class HOSPITAL,SCIENCE,RESEARCH box
+
+    %% =========================
+    %% FLOW
+    %% =========================
+    LEGACY --> LABELS
+    NEW --> LABELS
+    LABELS --> SPLIT
+    SPLIT --> MODEL
+    MODEL --> EVAL
+    EVAL --> REUSE
+
+    REUSE --> HOSPITAL
+    REUSE --> SCIENCE
+    REUSE --> RESEARCH
