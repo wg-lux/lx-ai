@@ -1,5 +1,6 @@
 # lx_ai/utils/data_loader_for_model_input.py
 from __future__ import annotations
+import os
 
 # =============================================================================
 # Standard Library
@@ -48,6 +49,8 @@ from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrit
 # a typed stand-in so fields like List[LabelInfo] don't become list[Unknown].
 # -----------------------------------------------------------------------------
 from lx_dtypes.models.base_models.base_model import AppBaseModel
+from lx_ai.utils.db_loader_for_model_input import load_annotations
+
 
 """if TYPE_CHECKING:
     from pydantic import BaseModel as _TypedBaseModel
@@ -391,7 +394,8 @@ def build_dataset_for_training(
             dataset_id=config.dataset_id
         )'''
         for ds_id in config.dataset_ids:
-            anns = load_annotations_from_postgres(dataset_id=ds_id)
+            #anns = load_annotations_from_postgres(dataset_id=ds_id)
+            anns = load_annotations(config=config, dataset_id=ds_id)
             all_annotations.extend(anns)
         
         annotations = all_annotations
@@ -399,9 +403,11 @@ def build_dataset_for_training(
         neg = sum(1 for a in annotations if a.get("value") is False)
         print(f"[ANNOTATIONS] positives={pos} negatives={neg}")
 
-        labelset = load_labelset_from_postgres(
+        labelset = load_labelset(
+            config=config,
             labelset_id=config.labelset_id,
-            labelset_version = config.labelset_version_to_train,)
+            labelset_version=config.labelset_version_to_train,
+        )
         
         ds = build_image_multilabel_dataset(
         dataset_uuid=config.dataset_uuid,
@@ -446,3 +452,79 @@ def build_dataset_for_training(
 
 
     raise ValueError(f"Unknown data_source={config.data_source!r}")
+
+def load_labelset(config, labelset_id: int, labelset_version: int):
+    db_backend = os.getenv("DB_BACKEND", "postgres")
+
+    if db_backend == "sqlite":
+        return load_labelset_from_sqlite(labelset_id, labelset_version)
+    elif db_backend == "postgres":
+        return load_labelset_from_postgres(
+            labelset_id=labelset_id,
+            labelset_version=labelset_version,
+        )
+    else:
+        raise ValueError(f"Unsupported DB backend: {db_backend}")
+    
+import sqlite3
+from pathlib import Path
+
+
+def load_labelset_from_sqlite(
+    labelset_id: int,
+    labelset_version: int,
+) -> dict:
+    """
+    Load labelset metadata + ordered labels from SQLite.
+
+    Same logic as PostgreSQL version.
+    """
+     
+    db_path = Path("dev_db.sqlite")
+
+    if not db_path.exists():
+        raise FileNotFoundError(f"SQLite DB not found: {db_path}")
+
+    sql = """
+    SELECT
+        ls.id,
+        ls.version,
+        l.id,
+        l.name
+    FROM endoreg_db_labelset ls
+    JOIN endoreg_db_labelset_labels lsl
+        ON lsl.labelset_id = ls.id
+    JOIN endoreg_db_label l
+        ON l.id = lsl.label_id
+    WHERE ls.id = ?
+      AND ls.version = ?
+    ORDER BY l.id
+    """
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute(sql, (labelset_id, labelset_version))
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    if not rows:
+        raise ValueError(
+            f"No labels found for labelset_id={labelset_id}, version={labelset_version}"
+        )
+
+    labels = []
+    for row in rows:
+        labels.append(
+            {
+                "id": row[2],
+                "name": row[3],
+            }
+        )
+
+    return {
+        "id": labelset_id,
+        "version": labelset_version,
+        "labels": labels,
+    }
