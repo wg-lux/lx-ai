@@ -11,4 +11,4 @@ inputs:
 allowUnfree: true
 secretspec:
   enable: true
-  provider: "dotenv"
+  provider: "env"

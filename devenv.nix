@@ -40,8 +40,8 @@ let
   
     HOME_DIR = config.secretspec.secrets.HOME_DIR;
     WORKING_DIR = config.secretspec.secrets.WORKING_DIR;
-    DATA_DIR = "/var/endoreg-service-user/data";
-    CONF_DIR = "/var/endoreg-service-user/lx-ai/conf";
+    DATA_DIR = config.secretspec.secrets.DATA_DIR;
+    CONF_DIR = config.secretspec.secrets.CONF_DIR;
 
     STORAGE_DIR = config.secretspec.secrets.DATA_DIR;
   
@@ -65,7 +65,7 @@ let
 
   _module.args.buildInputs = baseBuildInputs;
 
-  SYNC_CMD = "uv sync --extra dev --extra docs";
+  SYNC_CMD = "uv sync --active --extra dev --extra docs";
 
 in
 {
@@ -74,7 +74,7 @@ in
   # A dotenv file was found, while dotenv integration is currently not enabled.
   dotenv.enable = false;
   dotenv.disableHint = true;
-
+  cachix.enable = false;
   packages = runtimePackages ++ buildInputs;
 
   env = baseEnv // {
@@ -140,15 +140,25 @@ in
     fi
     env-setup
 
-    if [ -f ".env.systemd" ]; then
+    if [ -f ".env" ]; then
+      set -a
+      source .env
+      set +a
+    
+      export DJANGO_ENV="development"
+      export DATA_DIR="data"
+      export CONF_DIR="conf"
+      export FRAME_DIR="data/frames"
+      export STORAGE_DIR="data"
+    
+      echo ".env (dev) loaded"
+    elif [ -f ".env.systemd" ]; then
       set -a
       source .env.systemd
       set +a
-      echo ".env.systemd file loaded successfully."
-    else
-      echo "Note: .env.systemd not found. Defaults apply."
+      echo ".env.systemd (fallback) loaded"
     fi
-  '';
+    '';
 
   enterTest = ''
     nvcc -V
