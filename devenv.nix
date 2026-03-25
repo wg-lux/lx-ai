@@ -145,11 +145,11 @@ in
       source .env
       set +a
     
-      export DJANGO_ENV="development"
-      export DATA_DIR="data"
-      export CONF_DIR="conf"
-      export FRAME_DIR="data/frames"
-      export STORAGE_DIR="data"
+      export DJANGO_ENV=''${DJANGO_ENV:-development}
+      export DATA_DIR=''${DATA_DIR:-data}
+      export CONF_DIR=''${CONF_DIR:-conf}
+      export FRAME_DIR=''${FRAME_DIR:-data/frames}
+      export STORAGE_DIR=''${STORAGE_DIR:-data}
     
       echo ".env (dev) loaded"
     elif [ -f ".env.systemd" ]; then

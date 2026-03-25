@@ -49,8 +49,10 @@ treat_unlabeled_as_negative: false
 # MODEL
 # Model options: 
 # ------------------------------
+
 backbone_name: gastro_rn50
-backbone_checkpoint: /home/admin/dev/lx-ai/data/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth
+#backbone_checkpoint: /home/admin/dev/lx-ai/data/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth
+backbone_checkpoint: ${DATA_DIR}/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth
 freeze_backbone: true
 
 # ------------------------------
