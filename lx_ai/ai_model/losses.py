@@ -6,8 +6,7 @@ from typing import Optional, TypedDict
 import torch
 from pydantic import ConfigDict, Field, field_validator
 
-from lx_dtypes.models.base_models.base_model import AppBaseModel
-
+from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 from typing import cast
 # -----------------------------------------------------------------------------
 # Typed export (“ddict”) – consistent with your TrainingConfig pattern

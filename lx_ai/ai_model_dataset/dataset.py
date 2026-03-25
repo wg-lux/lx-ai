@@ -10,8 +10,7 @@ from numpy.typing import NDArray
 from PIL import Image
 from pydantic import ConfigDict, Field, field_validator, model_validator
 from torch.utils.data import Dataset
-from lx_dtypes.models.base_models.base_model import AppBaseModel
-
+from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 
 # -----------------------------------------------------------------------------
 # 1) Pydantic "spec" model: validate all dataset inputs BEFORE torch sees them

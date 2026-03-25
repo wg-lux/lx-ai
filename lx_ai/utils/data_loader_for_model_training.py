@@ -18,7 +18,7 @@ from typing import (
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from lx_dtypes.models.base_models.base_model import AppBaseModel
+from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 from lx_ai.utils.db_loader_for_model_input import load_annotations_from_postgres
 
 # -----------------------------------------------------------------------------

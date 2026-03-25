@@ -8,8 +8,7 @@ import torch
 from torch import nn
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from lx_dtypes.models.base_models.base_model import AppBaseModel
-
+from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 from collections.abc import Mapping as AbcMapping
 
 from typing import Any, Dict, TypeGuard

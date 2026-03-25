@@ -8,8 +8,7 @@ from typing import ClassVar, Literal, Optional, List, TypedDict, cast
 from pydantic import AwareDatetime, ConfigDict, Field, field_serializer, field_validator, model_validator
 from lx_ai.ai_model_split.bucket_splitter import BucketSplitPolicy
 
-from lx_dtypes.models.base_models.base_model import AppBaseModel
-
+from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 
 # -----------------------------------------------------------------------------
 # Strong “choice” types (Pydantic validation + IDE autocomplete)
