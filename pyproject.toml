@@ -138,9 +138,9 @@ exclude = [
 [tool.uv]
 # Resolve for macOS, Linux and Windows
 environments = [
-  "sys_platform=='darwin'",
+
   "sys_platform=='linux'",
-  "sys_platform=='win32'",
+  
 ]
 
 [tool.uv.workspace]

@@ -1,6 +1,6 @@
 # lx_ai/ai_model_config/config.py
 from __future__ import annotations
-
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import ClassVar, Literal, Optional, List, TypedDict, cast
@@ -293,7 +293,7 @@ class TrainingConfig(AppBaseModel):
             return Path(v).expanduser()
         raise TypeError("Expected Path | str | None")
     
-    
+    """ for paths we commented this
     @classmethod
     def _coerce_checkpoint_to_path(cls, v: object) -> Path | None:
         if v is None or v == "":
@@ -303,7 +303,20 @@ class TrainingConfig(AppBaseModel):
         if isinstance(v, str):
             return Path(v).expanduser()
         raise TypeError("backbone_checkpoint must be a Path, str, or None")
- 
+    """
+
+    @field_validator("backbone_checkpoint", mode="before")
+    @classmethod
+    def _coerce_checkpoint_to_path(cls, v: object) -> Path | None:
+        if v is None or v == "":
+            return None
+        if isinstance(v, Path):
+            return v.expanduser()
+        if isinstance(v, str):
+            # NEW: expand environment variables
+            v = os.path.expandvars(v)
+            return Path(v).expanduser()
+        raise TypeError("backbone_checkpoint must be a Path, str, or None")
     # -------------------------------------------------------------------------
     # Cross-field invariants & computed defaults (the “brain”)
     # -------------------------------------------------------------------------
