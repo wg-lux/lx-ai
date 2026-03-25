@@ -7,8 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field, model_validator
 from lx_ai.utils.logging_utils import subsection
 from lx_ai.ai_model_split.bucket_hash import compute_bucket_id, compute_bucket_key
-from lx_dtypes.models.base_models.base_model import AppBaseModel
-
+from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 
 class BucketSplitPolicy(AppBaseModel):
     """

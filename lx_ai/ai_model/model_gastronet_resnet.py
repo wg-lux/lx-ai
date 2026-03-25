@@ -8,8 +8,7 @@ import torch
 from pydantic import ConfigDict, Field, field_validator, model_validator
 from torch import nn
 
-from lx_dtypes.models.base_models.base_model import AppBaseModel
-
+from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 from lx_ai.ai_model.model_backbones import MultiLabelBackboneHead, create_multilabel_model
 
 

@@ -48,7 +48,7 @@ from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrit
 # We keep runtime using your real AppBaseModel, but for static analysis we provide
 # a typed stand-in so fields like List[LabelInfo] don't become list[Unknown].
 # -----------------------------------------------------------------------------
-from lx_dtypes.models.base_models.base_model import AppBaseModel
+from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 from lx_ai.utils.db_loader_for_model_input import load_annotations
 
 
