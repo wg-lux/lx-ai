@@ -402,8 +402,9 @@ def build_dataset_for_training(
             all_annotations.extend(anns)
         
         annotations = all_annotations
-        pos = sum(1 for a in annotations if a.get("value") is True)
-        neg = sum(1 for a in annotations if a.get("value") is False)
+        raw_values = [a.get("value") for a in annotations]
+        pos = sum(1 for v in raw_values if v is not None and bool(v))
+        neg = sum(1 for v in raw_values if v is not None and not bool(v))
         print(f"[ANNOTATIONS] positives={pos} negatives={neg}")
 
         labelset = load_labelset(
