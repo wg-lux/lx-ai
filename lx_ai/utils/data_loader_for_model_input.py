@@ -109,6 +109,9 @@ class ImageMultilabelDatasetDataDict(TypedDict):
     bucket_policy: Dict[str, Any]
     bucket_sizes: Dict[str, int]
     role_sizes: Dict[str, int]
+    dataset_ids_per_frame: List[int]
+    video_ids: List[int]
+    annotators_per_frame: List[List[Any]]
 
 
 def _empty_labelset_info() -> LabelSetInfo:

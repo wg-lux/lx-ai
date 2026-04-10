@@ -118,13 +118,16 @@ def _get_db_connection_kwargs() -> dict:
 def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
     sql = """
     SELECT
+        dai.aidataset_id        AS aidataset_id,
         f.id                    AS frame_id,
         f.relative_path         AS relative_path,
         vf.frame_dir            AS frame_dir,
         f.old_examination_id    AS old_examination_id,
+        vf.id                   AS video_id,
         l.id                    AS label_id,
         l.name                  AS label_name,
-        a.value                 AS value
+        a.value                 AS value,
+        a.annotator             AS annotator
     FROM endoreg_db_aidataset_image_annotations dai
     JOIN endoreg_db_imageclassificationannotation a
         ON a.id = dai.imageclassificationannotation_id
@@ -146,17 +149,20 @@ def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
             for row in cur.fetchall():
                 rows.append(
                     {
+                        "dataset_id": row[0],
                         "frame": {
-                            "id": row[0],
-                            "relative_path": row[1],
-                            "file_path": row[2],
-                            "old_examination_id": row[3],
+                            "id": row[1],
+                            "relative_path": row[2],
+                            "file_path": row[3],
+                            "old_examination_id": row[4],
+                            "video_id": row[5],
                         },
                         "label": {
-                            "id": row[4],
-                            "name": row[5],
+                            "id": row[6],
+                            "name": row[7],
                         },
-                        "value": row[6],
+                        "value": row[8],
+                        "annotator": row[9],
                     }
                 )
 
@@ -244,13 +250,16 @@ def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
 
     sql = """
     SELECT
+        dai.aidataset_id,
         f.id,
         f.relative_path,
         vf.frame_dir,
         f.old_examination_id,
+        vf.id,
         l.id,
         l.name,
-        a.value
+        a.value,
+        a.annotator
     FROM endoreg_db_aidataset_image_annotations dai
     JOIN endoreg_db_imageclassificationannotation a
         ON a.id = dai.imageclassificationannotation_id
@@ -273,17 +282,20 @@ def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
     for row in cursor.fetchall():
         rows.append(
             {
+                "dataset_id": row[0],
                 "frame": {
-                    "id": row[0],
-                    "relative_path": row[1],
-                    "file_path": row[2],
-                    "old_examination_id": row[3],
+                    "id": row[1],
+                    "relative_path": row[2],
+                    "file_path": row[3],
+                    "old_examination_id": row[4],
+                    "video_id": row[5],
                 },
                 "label": {
-                    "id": row[4],
-                    "name": row[5],
+                    "id": row[6],
+                    "name": row[7],
                 },
-                "value": row[6],
+                "value": row[8],
+                "annotator": row[9],
             }
         )
 

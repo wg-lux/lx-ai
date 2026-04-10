@@ -40,6 +40,7 @@ from lx_ai.ai_model_matrics.metrics import (
     MetricsResult,
     compute_metrics,
     compute_pos_only_metrics,
+    compute_pos_only_metrics_per_label,
 )
 
 # =============================================================================
@@ -205,6 +206,65 @@ def groupwise_split_indices_by_examination(
 
     return train_idx, val_idx, test_idx
 
+def _print_dataset_source_summary(
+    dataset_ids_per_frame: List[int],
+    video_ids: List[int],
+    frame_ids: List[int],
+    annotators_per_frame: List[List[Any]],
+) -> None:
+    from collections import defaultdict
+
+    subsection("DATASET SOURCE SUMMARY")
+
+    if not dataset_ids_per_frame or not video_ids:
+        print("  No dataset/video source metadata available.")
+        return
+
+    dataset_to_videos: Dict[int, set[int]] = defaultdict(set)
+    dataset_to_frames: Dict[int, int] = defaultdict(int)
+    dataset_to_annotators: Dict[int, set[str]] = defaultdict(set)
+
+    video_to_datasets: Dict[int, set[int]] = defaultdict(set)
+    video_to_frames: Dict[int, int] = defaultdict(int)
+    video_to_annotators: Dict[int, set[str]] = defaultdict(set)
+
+    for ds_id, vid_id, ann_list in zip(dataset_ids_per_frame, video_ids, annotators_per_frame):
+        dataset_to_videos[ds_id].add(vid_id)
+        dataset_to_frames[ds_id] += 1
+        video_to_datasets[vid_id].add(ds_id)
+        video_to_frames[vid_id] += 1
+
+        for ann in ann_list:
+            ann_str = str(ann)
+            dataset_to_annotators[ds_id].add(ann_str)
+            video_to_annotators[vid_id].add(ann_str)
+
+    print(f"  Total datasets used : {len(dataset_to_videos)}")
+    print(f"  Total videos used   : {len(video_to_datasets)}")
+    print(f"  Total frames used   : {len(frame_ids)}")
+
+    print()
+    table_header("Dataset", "Videos", "Frames", "Annotators")
+    for ds_id in sorted(dataset_to_videos.keys()):
+        annotators_str = ", ".join(sorted(dataset_to_annotators[ds_id])) if dataset_to_annotators[ds_id] else "N/A"
+        print(
+            f"{ds_id:<12} "
+            f"{len(dataset_to_videos[ds_id]):<12d} "
+            f"{dataset_to_frames[ds_id]:<12d} "
+            f"{annotators_str}"
+        )
+
+    print()
+    table_header("Video", "Datasets", "Frames", "Annotators")
+    for vid_id in sorted(video_to_datasets.keys()):
+        datasets_str = ", ".join(str(x) for x in sorted(video_to_datasets[vid_id]))
+        annotators_str = ", ".join(sorted(video_to_annotators[vid_id])) if video_to_annotators[vid_id] else "N/A"
+        print(
+            f"{vid_id:<12} "
+            f"{datasets_str:<12} "
+            f"{video_to_frames[vid_id]:<12d} "
+            f"{annotators_str}"
+        )
 
 def _tensor_row_as_floats(x: torch.Tensor, max_items: int = 12) -> List[float]:
     """
@@ -233,6 +293,9 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     labelset_any: Any = data["labelset"]
     frame_ids: List[int] = data.get("frame_ids", list(range(len(image_paths))))
     old_exam_ids: List[Optional[int]] = data.get("old_examination_ids", [None] * len(image_paths))
+    dataset_ids_per_frame: List[int] = cast(List[int], data.get("dataset_ids_per_frame", []))
+    video_ids: List[int] = cast(List[int], data.get("video_ids", []))
+    annotators_per_frame: List[List[Any]] = cast(List[List[Any]], data.get("annotators_per_frame", []))
     train_indices = cast(List[int], data["train_indices"])
     val_indices = cast(List[int], data["val_indices"])
     test_indices = cast(List[int], data["test_indices"])
@@ -243,10 +306,36 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     print(f"  Samples (frames)    : {len(image_paths)}")
     print(f"  Labels (raw)        : {len(labels_any)}")
 
+    _print_dataset_source_summary(
+        dataset_ids_per_frame=dataset_ids_per_frame,
+        video_ids=video_ids,
+        frame_ids=frame_ids,
+        annotators_per_frame=annotators_per_frame,
+    )
+
     subsection("BUCKET SPLIT POLICY")
-    print("  Policy:", data.get("bucket_policy"))
-    print("  Bucket sizes:", data.get("bucket_sizes"))
-    print("  Role sizes:", data.get("role_sizes"))
+
+    bucket_policy = cast(Dict[str, Any], data.get("bucket_policy", {}))
+    bucket_sizes = cast(Dict[str, int], data.get("bucket_sizes", {}))
+    role_sizes = cast(Dict[str, int], data.get("role_sizes", {}))
+
+    print("  Num buckets        :", bucket_policy.get("num_buckets", "N/A"))
+    print("  Validation buckets :", bucket_policy.get("validation_buckets", []))
+    print("  Test buckets       :", bucket_policy.get("test_buckets", []))
+    print("  Train buckets      :", bucket_policy.get("train_buckets", []))
+
+    if bucket_sizes:
+        print()
+        table_header("Bucket", "Frames")
+        for bucket_id in sorted(bucket_sizes.keys(), key=lambda x: int(x)):
+            print(f"{bucket_id:<12} {bucket_sizes[bucket_id]:<12d}")
+
+    if role_sizes:
+        print()
+        table_header("Split", "Frames")
+        for split_name in ("train", "val", "test"):
+            if split_name in role_sizes:
+                print(f"{split_name:<12} {role_sizes[split_name]:<12d}")
 
     # ---------------------------------------------------------
     # BUILD BUCKET SNAPSHOT MAP
@@ -589,6 +678,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         train_loss = train_loss_sum / max(train_batches, 1)
         history["train_loss"].append(train_loss)
 
+
         # Val
         '''if val_loader is None:
 
@@ -636,6 +726,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         # -------------------------
         val_metrics = None
         val_pos_metrics = None
+        val_pos_per_label_metrics = None
         
         if val_loader is not None:
             model.eval()
@@ -691,9 +782,16 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
                     masks=all_val_masks,
                     threshold=0.5,
                 )
+                val_pos_per_label_metrics = compute_pos_only_metrics_per_label(
+                    logits=all_val_logits,
+                    targets=all_val_targets,
+                    masks=all_val_masks,
+                    threshold=0.5,
+                )
                 val_metrics = None
             else:
                 val_pos_metrics = None
+                val_pos_per_label_metrics = None
                 val_metrics = compute_metrics(
                     logits=all_val_logits,
                     targets=all_val_targets,
@@ -706,22 +804,6 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
             history["val_loss"].append(None)
 
 
-        '''subsection(f"EPOCH {epoch}/{config.num_epochs}")
-        if val_metrics is not None:
-            print(
-                f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
-                f"train_loss={train_loss:.4f} "
-                f"val_loss={val_loss:.4f} "
-                f"val_f1={val_metrics['f1']:.4f} "
-                f"val_acc={val_metrics['accuracy']:.4f}"
-            )
-        else:
-            print(
-                f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
-                f"train_loss={train_loss:.4f} "
-                f"(validation disabled)"
-            )'''
-        #
         subsection(f"EPOCH {epoch}/{config.num_epochs}")
         if val_metrics is not None:
             print(
@@ -746,6 +828,43 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
                 f"train_loss={train_loss:.4f} "
                 f"(validation disabled)"
             )
+
+        if val_metrics is not None:
+            subsection("VAL PER-LABEL METRICS")
+            table_header("Label", "Prec", "Rec", "F1", "Support")
+
+            for j, stats in enumerate(val_metrics["per_label"]):
+                name = _label_name(labels_any[j])
+                p = stats["precision"]
+                r = stats["recall"]
+                f = stats["f1"]
+                sup = stats["support"]
+
+                if p is None:
+                    print(f"{name:20s} {'N/A':>8} {'N/A':>8} {'N/A':>8} {sup:8d}")
+                else:
+                    print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
+
+            print("-" * 60)
+
+        elif val_pos_per_label_metrics is not None:
+            subsection("VAL PER-LABEL METRICS (POSITIVES-ONLY)")
+            table_header("Label", "Recall+", "MeanProb+", "PosSup", "Known", "Unknown")
+
+            for j, stats in enumerate(val_pos_per_label_metrics["per_label"]):
+                name = _label_name(labels_any[j])
+                r = stats["recall_pos"]
+                mp = stats["mean_prob_pos"]
+                ps = stats["positive_support"]
+                kc = stats["known_count"]
+                uc = stats["unknown_count"]
+
+                if r is None or mp is None:
+                    print(f"{name:20s} {'N/A':>8} {'N/A':>10} {ps:8d} {kc:8d} {uc:8d}")
+                else:
+                    print(f"{name:20s} {r:8.4f} {mp:10.4f} {ps:8d} {kc:8d} {uc:8d}")
+
+            print("-" * 80)
 
         #
 
@@ -774,24 +893,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
       
 
         #
-        if val_metrics is not None:
-            subsection("VAL PER-LABEL METRICS")
-            table_header("Label", "Prec", "Rec", "F1", "Support")
-        
-            for j, stats in enumerate(val_metrics["per_label"]):
-                name = _label_name(labels_any[j])
-                p = stats["precision"]
-                r = stats["recall"]
-                f = stats["f1"]
-                sup = stats["support"]
-                if p is None:
-                    print(f"{name:20s} {'N/A':>8} {'N/A':>8} {'N/A':>8} {sup:8d}")
-                else:
-                    print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
-            print("-" * 60)
-        else:
-            # Positives-only or validation disabled: do not print per-label precision/recall/F1 table
-            pass
+    
         #
 
     # ------------------------------------------------------------------
@@ -814,6 +916,8 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
 # -------------------------
     history["test_loss"] = None
     test_metrics = None
+    test_pos_per_label_metrics = None
+    test_pos_metrics = None
     
     if test_loader is not None:
         model.eval()
@@ -866,8 +970,15 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
                 masks=all_test_masks,
                 threshold=0.5,
             )
+            test_pos_per_label_metrics = compute_pos_only_metrics_per_label(
+                logits=all_test_logits,
+                targets=all_test_targets,
+                masks=all_test_masks,
+                threshold=0.5,
+            )
         else:
             test_pos_metrics = None
+            test_pos_per_label_metrics = None
             test_metrics = compute_metrics(
                 logits=all_test_logits,
                 targets=all_test_targets,
@@ -905,23 +1016,45 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     else:
         print("  Test skipped.")
 
-
     if test_metrics is not None:
         subsection("TEST PER-LABEL METRICS")
         table_header("Label", "Prec", "Rec", "F1", "Support")
-    
+
         for j, stats in enumerate(test_metrics["per_label"]):
             name = _label_name(labels_any[j])
             p = stats["precision"]
             r = stats["recall"]
             f = stats["f1"]
             sup = stats["support"]
+
             if p is None:
                 print(f"{name:20s} {'N/A':>8} {'N/A':>8} {'N/A':>8} {sup:8d}")
             else:
                 print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
-    
-    print("-" * 60)
+
+        print("-" * 60)
+
+    elif test_pos_per_label_metrics is not None:
+        subsection("TEST PER-LABEL METRICS (POSITIVES-ONLY)")
+        table_header("Label", "Recall+", "MeanProb+", "PosSup", "Known", "Unknown")
+
+        for j, stats in enumerate(test_pos_per_label_metrics["per_label"]):
+            name = _label_name(labels_any[j])
+            r = stats["recall_pos"]
+            mp = stats["mean_prob_pos"]
+            ps = stats["positive_support"]
+            kc = stats["known_count"]
+            uc = stats["unknown_count"]
+
+            if r is None or mp is None:
+                print(f"{name:20s} {'N/A':>8} {'N/A':>10} {ps:8d} {kc:8d} {uc:8d}")
+            else:
+                print(f"{name:20s} {r:8.4f} {mp:10.4f} {ps:8d} {kc:8d} {uc:8d}")
+
+        print("-" * 80)
+
+
+ 
 
     # Save
     runs_dir = Path(config.runs_dir)
