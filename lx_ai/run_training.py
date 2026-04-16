@@ -23,7 +23,7 @@ from lx_ai.ai_model_training.trainer_gastronet_multilabel import (
 )
 from lx_ai.utils.logging_utils import section, subsection
 
-
+print("\n")
 print("Using database config:", settings.DATABASES)
 print("Data dir:", settings.DATA_DIR)
 print("Frame dir:", settings.FRAME_DIR)
@@ -38,6 +38,7 @@ def main() -> None:
     section("TRAINING START")
 
     subsection("CONFIG")
+    #TODO: dataset uuid should bbe fetched from databsse
     print(f"  Dataset UUID          : {cfg.dataset_uuid}")
     print(f"  Data source           : {cfg.data_source}")
     print(

@@ -228,6 +228,7 @@ def _print_dataset_source_summary(
     video_to_frames: Dict[int, int] = defaultdict(int)
     video_to_annotators: Dict[int, set[str]] = defaultdict(set)
 
+
     for ds_id, vid_id, ann_list in zip(dataset_ids_per_frame, video_ids, annotators_per_frame):
         dataset_to_videos[ds_id].add(vid_id)
         dataset_to_frames[ds_id] += 1
@@ -243,6 +244,19 @@ def _print_dataset_source_summary(
     print(f"  Total videos used   : {len(video_to_datasets)}")
     print(f"  Total frames used   : {len(frame_ids)}")
 
+    print()
+    subsection("DATASET -> VIDEO DISTRIBUTION")
+    table_header("Dataset", "Video", "Frames")
+
+    for ds_id in sorted(dataset_to_videos.keys()):
+        for vid_id in sorted(dataset_to_videos[ds_id]):
+            print(
+                f"{ds_id:<12} "
+                f"{vid_id:<12} "
+                f"{video_to_frames[vid_id]:<12d}"
+            )
+    
+    
     print()
     table_header("Dataset", "Videos", "Frames", "Annotators")
     for ds_id in sorted(dataset_to_videos.keys()):
@@ -300,6 +314,29 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     val_indices = cast(List[int], data["val_indices"])
     test_indices = cast(List[int], data["test_indices"])
 
+    (
+        label_vectors,
+        label_masks,
+        labels_any,
+        kept_indices,
+    ) = filter_labels_by_labelset_version(
+        labels=labels_any,
+        label_vectors=label_vectors,
+        label_masks=label_masks,
+        target_version=config.labelset_version_to_train,
+        labelset=labelset_any,
+    )
+
+    subsection("LABEL SPACE (AFTER FILTERING)")
+    print(f"  Total labels kept: {len(labels_any)}\n")
+    
+    table_header("New idx", "Label ID", "Label name")
+    
+    for new_idx, lbl in enumerate(labels_any):
+        lbl_id = _get(lbl, "id", None)
+        name = _label_name(lbl)
+        print(f"{new_idx:<10} {str(lbl_id):<10} {name}")
+
 
     subsection("DATASET SUMMARY")
     print(f"  Dataset UUID        : {config.dataset_uuid}")
@@ -339,19 +376,24 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
 
     # ---------------------------------------------------------
     # BUILD BUCKET SNAPSHOT MAP
+    # Prefer allocator-produced bucket_map if present.
+    # Fallback to old frame/exam hashing only for backward compatibility.
     # ---------------------------------------------------------
-    
-    bucket_map: Dict[str, int] = {}
-    
-    num_buckets = config.bucket_policy.num_buckets
-    
-    for idx, (fid, exam_id) in enumerate(zip(frame_ids, old_exam_ids)):
-        key = build_bucket_key(
-            frame_id=fid,
-            old_examination_id=exam_id
-        )
-        bucket_id = compute_bucket(key, num_buckets)
-        bucket_map[key] = bucket_id
+
+    bucket_map = cast(Dict[str, int], data.get("bucket_map", {}))
+    bucket_ids_per_sample = cast(List[int], data.get("bucket_ids_per_sample", []))
+
+    if not bucket_map or not bucket_ids_per_sample:
+        bucket_map = {}
+        num_buckets = config.bucket_policy.num_buckets
+
+        for fid, exam_id in zip(frame_ids, old_exam_ids):
+            key = build_bucket_key(
+                frame_id=fid,
+                old_examination_id=exam_id,
+            )
+            bucket_id = compute_bucket(key, num_buckets)
+            bucket_map[key] = bucket_id
 
     # ---------------------------------------------------------
     # OPTIONAL SNAPSHOT SAVE
@@ -361,20 +403,29 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     
     if config.save_bucket_snapshot:
     
-        train_bucket_ids = list(
-            set(bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
-                for i in train_indices)
-        )
-    
-        val_bucket_ids = list(
-            set(bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
-                for i in val_indices)
-        )
-    
-        test_bucket_ids = list(
-            set(bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
-                for i in test_indices)
-        )
+        if bucket_ids_per_sample:
+            train_bucket_ids = sorted({bucket_ids_per_sample[i] for i in train_indices})
+            val_bucket_ids = sorted({bucket_ids_per_sample[i] for i in val_indices})
+            test_bucket_ids = sorted({bucket_ids_per_sample[i] for i in test_indices})
+        else:
+            train_bucket_ids = sorted(
+                {
+                    bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
+                    for i in train_indices
+                }
+            )
+            val_bucket_ids = sorted(
+                {
+                    bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
+                    for i in val_indices
+                }
+            )
+            test_bucket_ids = sorted(
+                {
+                    bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
+                    for i in test_indices
+                }
+            )
     
         save_bucket_snapshot(
             bucket_map=bucket_map,
@@ -384,30 +435,6 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
             dataset_ids=config.dataset_ids,
             bucket_policy=config.bucket_policy.to_meta(),
         )
-
-    (
-        label_vectors,
-        label_masks,
-        labels_any,
-        kept_indices,
-    ) = filter_labels_by_labelset_version(
-        labels=labels_any,
-        label_vectors=label_vectors,
-        label_masks=label_masks,
-        target_version=config.labelset_version_to_train,
-        labelset=labelset_any,
-    )
-
-    subsection("LABEL SPACE (AFTER FILTERING)")
-    print(f"  Total labels kept: {len(labels_any)}\n")
-    
-    table_header("New idx", "Label ID", "Label name")
-    
-    for new_idx, lbl in enumerate(labels_any):
-        lbl_id = _get(lbl, "id", None)
-        name = _label_name(lbl)
-        print(f"{new_idx:<10} {str(lbl_id):<10} {name}")
-
 
 
     # Apply unlabeled semantics
