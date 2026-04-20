@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, TypedDict
+from typing import Any, Dict, List, Optional, Sequence, TypedDict
 
 from lx_ai.ai_model_config.config import TrainingConfig
 from lx_ai.ai_model_split.video_bucket_registry import VideoBucketRegistry
@@ -37,6 +37,7 @@ class PersistentBucketAssignmentResult(TypedDict):
     val_indices: List[int]
     test_indices: List[int]
     bucket_map: Dict[str, int]
+    diagnostics: Dict[str, Any]
 
 class CandidateScoreBreakdown(TypedDict):
     bucket_id: int
@@ -613,11 +614,11 @@ def assign_buckets_with_persistent_video_registry(
     )
     num_labels = len(all_videos[0].pos_counts)
 
-    _print_video_grouping_summary(
+    '''_print_video_grouping_summary(
         videos=all_videos,
         num_labels=num_labels,
         label_names=label_names,
-    )
+    )'''
 
     total_frames_all = sum(v.frame_count for v in all_videos)
     total_videos_all = len(all_videos)
@@ -636,7 +637,29 @@ def assign_buckets_with_persistent_video_registry(
         all_video_summaries=all_videos,
     )
 
-    _print_allocator_condition(condition)
+    #_print_allocator_condition(condition)
+
+
+    diagnostics: Dict[str, Any] = {
+        "condition": condition,
+        "registry_path": str(registry_path),
+        "video_grouping": {
+            "total_videos": len(all_videos),
+            "total_frames": sum(v.frame_count for v in all_videos),
+            "total_datasets": len(
+                {
+                    ds_id
+                    for v in all_videos
+                    for ds_id in v.dataset_frame_counts.keys()
+                }
+            ),
+        },
+        "existing_videos": [],
+        "new_videos": [],
+        "new_video_decisions": [],
+        "final_assignments": [],
+        "bucket_balance": [],
+    }
 
     bucket_stats = _init_bucket_stats(num_buckets=num_buckets, num_labels=num_labels)
     assigned_bucket_by_video: Dict[str, int] = {}
@@ -652,12 +675,37 @@ def assign_buckets_with_persistent_video_registry(
             assigned_bucket_by_video[v.video_key] = int(existing)
             old_videos.append(v)
 
-    _print_registry_summary(
+    diagnostics["existing_videos"] = [
+        {
+            "video_id": v.video_id,
+            "video_key": v.video_key,
+            "frames": v.frame_count,
+            "bucket": assigned_bucket_by_video[v.video_key],
+            "datasets": sorted(v.dataset_frame_counts.keys()),
+        }
+        for v in old_videos
+    ]
+
+    diagnostics["new_videos"] = [
+        {
+            "video_id": v.video_id,
+            "video_key": v.video_key,
+            "frames": v.frame_count,
+            "datasets": sorted(v.dataset_frame_counts.keys()),
+            "pos_counts": list(v.pos_counts),
+            "neg_counts": list(v.neg_counts),
+            "known_counts": list(v.known_counts),
+            "unknown_counts": list(v.unknown_counts),
+        }
+        for v in new_videos
+    ]
+
+    '''_print_registry_summary(
         registry_path=registry_path,
         old_videos=old_videos,
         new_videos=new_videos,
         assigned_bucket_by_video=assigned_bucket_by_video,
-    )
+    )'''
 
     # Seed bucket stats with already-frozen assignments
     for v in old_videos:
@@ -725,11 +773,26 @@ def assign_buckets_with_persistent_video_registry(
             )
             candidate_breakdowns.append(breakdown)
 
-        _print_new_video_decision_process(
+        '''_print_new_video_decision_process(
             video=v,
             condition=condition,
             candidate_breakdowns=candidate_breakdowns,
             label_names=label_names,
+        )'''
+
+        diagnostics["new_video_decisions"].append(
+            {
+                "video_id": v.video_id,
+                "video_key": v.video_key,
+                "frames": v.frame_count,
+                "datasets": sorted(v.dataset_frame_counts.keys()),
+                "condition": condition,
+                "pos_counts": list(v.pos_counts),
+                "neg_counts": list(v.neg_counts),
+                "known_counts": list(v.known_counts),
+                "unknown_counts": list(v.unknown_counts),
+                "candidate_breakdowns": candidate_breakdowns,
+            }
         )
 
         best = sorted(candidate_breakdowns, key=lambda x: (x["total_score"], x["bucket_id"]))[0]
@@ -741,15 +804,38 @@ def assign_buckets_with_persistent_video_registry(
 
     registry.save()
 
-    _print_final_video_bucket_assignments(
+    diagnostics["final_assignments"] = [
+        {
+            "video_id": v.video_id,
+            "video_key": v.video_key,
+            "frames": v.frame_count,
+            "bucket": assigned_bucket_by_video[v.video_key],
+            "datasets": sorted(v.dataset_frame_counts.keys()),
+        }
+        for v in all_videos
+    ]
+
+    diagnostics["bucket_balance"] = [
+        {
+            "bucket_id": idx,
+            "frames": st.frames,
+            "videos": st.videos,
+            "pos_counts": list(st.pos_counts),
+            "neg_counts": list(st.neg_counts),
+            "known_counts": list(st.known_counts),
+        }
+        for idx, st in enumerate(bucket_stats)
+    ]
+
+    '''_print_final_video_bucket_assignments(
         videos=all_videos,
         assigned_bucket_by_video=assigned_bucket_by_video,
-    )
+    )'''
 
-    _print_bucket_balance_summary(
+    '''_print_bucket_balance_summary(
         bucket_stats=bucket_stats,
         label_names=label_names,
-    )
+    )'''
 
     bucket_ids_per_sample: List[int] = []
     bucket_map: Dict[str, int] = dict(sorted(assigned_bucket_by_video.items()))
@@ -792,4 +878,5 @@ def assign_buckets_with_persistent_video_registry(
         "val_indices": val_idx,
         "test_indices": test_idx,
         "bucket_map": bucket_map,
+        "diagnostics": diagnostics,
     }

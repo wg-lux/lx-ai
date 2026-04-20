@@ -118,6 +118,10 @@ class ImageMultilabelDatasetDataDict(TypedDict):
     annotators_per_frame: List[List[Any]]
     bucket_ids_per_sample: List[int]
     bucket_map: Dict[str, int]
+    annotation_positive_count : int
+    annotation_negative_count : int
+    allocation_diagnostic: Dict[str, Any]
+
     
     
 def _empty_labelset_info() -> LabelSetInfo:
@@ -377,7 +381,7 @@ def build_dataset_for_training(
             dataset_ids_per_frame=ds["dataset_ids_per_frame"],
             label_vectors=ds["label_vectors"],
             label_masks=ds["label_masks"],
-            abel_names=label_names,
+            label_names=label_names,
         )
 
         train_idx = assign_res["train_indices"]
@@ -409,6 +413,9 @@ def build_dataset_for_training(
         ds["role_sizes"] = role_sizes
         ds["bucket_ids_per_sample"] = bucket_ids
         ds["bucket_map"] = assign_res["bucket_map"]
+        ds["annotation_positive_count"] = 0
+        ds["annotation_negative_count"] = 0
+        ds["allocation_diagnostics"] = assign_res["diagnostics"]
         
         return ds
 
@@ -427,7 +434,7 @@ def build_dataset_for_training(
         raw_values = [a.get("value") for a in annotations]
         pos = sum(1 for v in raw_values if v is not None and bool(v))
         neg = sum(1 for v in raw_values if v is not None and not bool(v))
-        print(f"[ANNOTATIONS] positives={pos} negatives={neg}")
+        #print(f"[ANNOTATIONS] positives={pos} negatives={neg}")
 
         labelset = load_labelset(
             config=config,
@@ -483,7 +490,7 @@ def build_dataset_for_training(
         # ---------------------------------------------------------
         # SPLIT SUMMARY (NEW - DEBUG / VISIBILITY)
         # ---------------------------------------------------------
-        from lx_ai.utils.logging_utils import subsection, table_header
+        '''from lx_ai.utils.logging_utils import subsection, table_header
         
         subsection("SPLIT SUMMARY")
         
@@ -498,7 +505,7 @@ def build_dataset_for_training(
         print(f"{'Validation':<12} {len(val_idx):<10d} {pct(len(val_idx)):>6.1f} %")
         print(f"{'Test':<12} {len(test_idx):<10d} {pct(len(test_idx)):>6.1f} %")
         print("-" * 60)
-        print(f"{'Total':<12} {n_total:<10d} {100.0:>6.1f} %")
+        print(f"{'Total':<12} {n_total:<10d} {100.0:>6.1f} %")'''
         
         ds["train_indices"] = train_idx
         ds["val_indices"] = val_idx
@@ -508,6 +515,9 @@ def build_dataset_for_training(
         ds["role_sizes"] = role_sizes
         ds["bucket_ids_per_sample"] = bucket_ids
         ds["bucket_map"] = assign_res["bucket_map"]
+        ds["annotation_positive_count"] = pos if config.data_source == "postgres" else 0
+        ds["annotation_negative_count"] = neg if config.data_source == "postgres" else 0
+        ds["allocation_diagnostics"] = assign_res["diagnostics"]
         
         return ds
 

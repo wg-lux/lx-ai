@@ -15,6 +15,7 @@ from typing import (
     TypeGuard,
     cast,
 )
+import os
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -449,8 +450,13 @@ def build_image_multilabel_dataset(
         '''file_path_raw = _require(frame, "file_path")
         file_path = Path(str(file_path_raw)).expanduser().resolve()
         image_paths.append(file_path)'''
+        
 
-        frame_dir = _require(frame, "file_path")
+        # As currenlty, dataset has restricted frame_dir, which is not accessible as a local user for this service user is required, for verification we commented
+        # liine 456 to 470 and in place of this added new logic that change sthe path to /home/admin/dev/lx-ai/data/frames_mirror/<hash>/frame_x.jpg and generated placeholder image at 
+        # lx_ai/scripts/materialize_missing_frames_remap.py, to set this before running script run export restricted path and then local path like export FRAME_PATH_REMAP_TARGET="/home/admin/dev/lx-ai/data/frames_mirror".
+        # How to go back to the real paths: Just unset the variables: unset FRAME_PATH_REMAP_SOURCE and unset FRAME_PATH_REMAP_TARGET
+        '''frame_dir = _require(frame, "file_path")
         relative_path = _require(frame, "relative_path")
 
         file_path = (
@@ -464,7 +470,37 @@ def build_image_multilabel_dataset(
 
         if not file_path.is_file():
             raise FileNotFoundError(f"Image file not found: {file_path}"
-                                    f"(frame_dir={frame_dir}, relative_path={relative_path})")
+                                    f"(frame_dir={frame_dir}, relative_path={relative_path})")'''
+        
+        frame_dir = _require(frame, "file_path")
+        relative_path = _require(frame, "relative_path")
+        
+        raw_frame_dir = Path(str(frame_dir))
+        rel_path = Path(str(relative_path))
+        
+        remap_source = os.getenv("FRAME_PATH_REMAP_SOURCE", "").strip()
+        remap_target = os.getenv("FRAME_PATH_REMAP_TARGET", "").strip()
+        
+        if remap_source and remap_target:
+            try:
+                raw_frame_dir_str = str(raw_frame_dir)
+                if raw_frame_dir_str.startswith(remap_source):
+                    raw_frame_dir = Path(
+                        raw_frame_dir_str.replace(remap_source, remap_target, 1)
+                    )
+            except Exception:
+                pass
+        
+        file_path = (raw_frame_dir / rel_path).expanduser().resolve()
+        image_paths.append(file_path)
+        
+        if not file_path.is_file():
+            raise FileNotFoundError(
+                f"Image file not found: {file_path}"
+                f"(frame_dir={frame_dir}, relative_path={relative_path})"
+            )
+        
+    
 
         vec: List[Optional[int]] = [None] * num_labels
 
