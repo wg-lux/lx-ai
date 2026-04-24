@@ -23,9 +23,9 @@ from lx_ai.ai_model_training.trainer_gastronet_multilabel import (
 )
 from lx_ai.utils.logging_utils import section, subsection, kv
 print("\n")
-print("Using database config:", settings.DATABASES)
-print("Data dir:", settings.DATA_DIR)
-print("Frame dir:", settings.FRAME_DIR)
+#print("Using database config:", settings.DATABASES)
+#print("Data dir:", settings.DATA_DIR)
+#print("Frame dir:", settings.FRAME_DIR)
 
 
 def main() -> None:
