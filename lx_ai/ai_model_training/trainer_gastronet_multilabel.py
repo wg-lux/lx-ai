@@ -367,7 +367,7 @@ def _print_allocation_diagnostics(
                 f"{row['dataset_score']:<12.6f}"
             )
 
-        best = sorted(
+        '''best = sorted(
             entry.get("candidate_breakdowns", []),
             key=lambda x: (x["total_score"], x["bucket_id"]),
         )[0]
@@ -376,6 +376,26 @@ def _print_allocation_diagnostics(
         kv("Selected bucket", best["bucket_id"])
         kv("Winning score", f"{best['total_score']:.6f}")
         kv("Reason", "Minimum total score after simulating this video in every bucket")
+        soft_line()'''
+        #changed
+        candidate_breakdowns = entry.get("candidate_breakdowns", [])
+
+        if candidate_breakdowns:
+            best = min(
+                candidate_breakdowns,
+                key=lambda x: (x["total_score"], x["bucket_id"]),
+            )
+        
+            decision_subsection("Decision")
+            kv("Selected bucket", best["bucket_id"])
+            kv("Winning score", f"{best['total_score']:.6f}")
+            kv("Reason", "Minimum total score after simulating this video in every bucket")
+        else:
+            decision_subsection("Decision")
+            kv("Selected bucket", "N/A")
+            kv("Winning score", "N/A")
+            kv("Reason", "No candidate bucket scores available in diagnostics")
+        
         soft_line()
 
     subsection("FINAL VIDEO -> BUCKET ASSIGNMENTS")
