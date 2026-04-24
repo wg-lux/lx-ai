@@ -24,12 +24,6 @@ from endoreg_db.models import (
     Patient,
     PatientExamination,
 )
-from endoreg_db.models import (
-    AIDataSet,
-    VideoFile,
-    Frame,
-    ImageClassificationAnnotation,
-)
 
 
 CSV_DIR = Path("/home/admin/csv")
