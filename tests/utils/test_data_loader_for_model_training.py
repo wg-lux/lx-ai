@@ -198,14 +198,15 @@ class TestDataLoaderForModelTraining:
         assert ds["label_masks"] == [[1, 1]]
         assert ds["annotators_per_frame"] == [["ann_a", "ann_b"]]
 
-    def test_build_image_multilabel_dataset_keeps_true_negative_annotation(
+    
+    def test_build_image_multilabel_dataset_drops_labels_with_zero_positive_samples(
         self,
         tmp_path: Path,
     ) -> None:
-        # checks explicit false annotation is kept as known negative
+        # checks labels with no positive samples are removed by current builder logic
         self._touch_image(tmp_path / "frame_1.jpg")
         self._touch_image(tmp_path / "frame_2.jpg")
-
+    
         annotations = [
             {
                 "dataset_id": 1,
@@ -234,21 +235,23 @@ class TestDataLoaderForModelTraining:
                 "annotator": "ann_b",
             },
         ]
-
+    
         ds = build_image_multilabel_dataset(
             dataset_uuid="test_ds",
             annotations=annotations,
             labelset=self._labelset(),
             treat_unlabeled_as_negative=False,
         )
-
+    
+        assert [label["name"] for label in ds["labels"]] == ["blood"]
         assert ds["label_vectors"] == [
-            [None, 1],
+            [None],
+            [1],
         ]
         assert ds["label_masks"] == [
-            [0, 1],
+            [0],
+            [1],
         ]
-
     def test_build_image_multilabel_dataset_rejects_empty_annotations(
         self,
     ) -> None:
