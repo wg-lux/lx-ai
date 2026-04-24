@@ -1,173 +1,287 @@
-# tests/ai_model_config/test_training_config.py
+from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from lx_ai.ai_model_config.config import TrainingConfig
 
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
-
-def minimal_jsonl_config(tmp_path: Path) -> dict:
-    """
-    Minimal valid configuration for jsonl-based training.
-
-    This represents the smallest config that should pass validation.
-    """
-    jsonl = tmp_path / "data.jsonl"
-    jsonl.write_text("{}\n", encoding="utf-8")
+def _base_config_dict(tmp_path: Path) -> dict:
+    # base valid config used in all tests
+    checkpoint = tmp_path / "checkpoint.pth"
+    checkpoint.write_bytes(b"fake-checkpoint")
 
     return {
-        "dataset_uuid": "test_ds",
-        "data_source": "jsonl",
-        "jsonl_path": jsonl,
-    }
-
-
-# -----------------------------------------------------------------------------
-# 1. Minimal valid config
-# -----------------------------------------------------------------------------
-
-def test_training_config__minimal_jsonl_config__passes(tmp_path: Path) -> None:
-    """
-    GIVEN a minimal jsonl-based configuration
-    WHEN TrainingConfig is created
-    THEN validation succeeds and defaults are applied
-    """
-    cfg = TrainingConfig(**minimal_jsonl_config(tmp_path))
-
-    assert cfg.dataset_uuid == "test_ds"
-    assert cfg.data_source == "jsonl"
-    assert cfg.treat_unlabeled_as_negative is True
-    assert cfg.labelset_version_to_train == TrainingConfig.DEFAULT_LABELSET_VERSION
-
-
-# -----------------------------------------------------------------------------
-# 2. Required fields
-# -----------------------------------------------------------------------------
-
-def test_training_config__missing_dataset_uuid__raises_error(tmp_path: Path) -> None:
-    """
-    dataset_uuid is mandatory for all training runs.
-    """
-    data = minimal_jsonl_config(tmp_path)
-    data.pop("dataset_uuid")
-
-    with pytest.raises(Exception):
-        TrainingConfig(**data)
-
-
-# -----------------------------------------------------------------------------
-# 3. Data source semantics
-# -----------------------------------------------------------------------------
-
-def test_training_config__postgres_without_dataset_id__fails(tmp_path: Path) -> None:
-    """
-    postgres mode requires dataset_id and labelset_id.
-    """
-    data = {
-        "dataset_uuid": "ds",
+        "dataset_uuid": "sandbox_ds",
         "data_source": "postgres",
-        "labelset_id": 1,
+        "dataset_ids": [1, 2],
+        "labelset_id": 5,
+        "labelset_version_to_train": 3,
+        "treat_unlabeled_as_negative": False,
+        "base_dir": str(tmp_path),
+        "training_root": str(tmp_path / "training"),
+        "checkpoints_dir": str(tmp_path / "training" / "checkpoints"),
+        "runs_dir": str(tmp_path / "training" / "runs"),
+        "create_dirs": True,
+        "backbone_name": "gastro_rn50",
+        "backbone_checkpoint": str(checkpoint),
+        "freeze_backbone": True,
+        "num_epochs": 2,
+        "batch_size": 3,
+        "lr_head": 0.001,
+        "lr_backbone": 0.0001,
+        "gamma_focal": 2.0,
+        "alpha_focal": 0.25,
+        "use_scheduler": True,
+        "warmup_epochs": 2,
+        "min_lr": 1.0e-6,
+        "device": "cpu",
+        "random_seed": 42,
+        "bucket_policy": {
+            "num_buckets": 5,
+            "validation_buckets": [3],
+            "test_buckets": [4],
+        },
+        "save_bucket_snapshot": True,
     }
 
-    with pytest.raises(ValueError, match="dataset_id must be set"):
-        TrainingConfig(**data)
 
+def test_valid_postgres_config_creates_dirs(tmp_path: Path) -> None:
+    # checks that valid postgres config works and directories are created
+    cfg = TrainingConfig.model_validate(_base_config_dict(tmp_path))
 
-def test_training_config__postgres_without_labelset_id__fails(tmp_path: Path) -> None:
-    """
-    postgres mode requires an explicit labelset_id.
-    """
-    data = {
-        "dataset_uuid": "ds",
-        "data_source": "postgres",
-        "dataset_id": 1,
-    }
-
-    with pytest.raises(ValueError, match="labelset_id must be provided"):
-        TrainingConfig(**data)
-
-
-# -----------------------------------------------------------------------------
-# 4. Path inference and directory creation
-# -----------------------------------------------------------------------------
-
-def test_training_config__paths_are_inferred_and_created(tmp_path: Path) -> None:
-    """
-    If base_dir is provided, training_root, checkpoints_dir and runs_dir
-    are derived automatically and created on disk.
-    """
-    data = minimal_jsonl_config(tmp_path)
-    data["base_dir"] = tmp_path
-
-    cfg = TrainingConfig(**data)
-
-    assert cfg.training_root == tmp_path / "data" / "model_training"
+    assert cfg.data_source == "postgres"
+    assert cfg.dataset_ids == [1, 2]
+    assert cfg.labelset_id == 5
+    assert cfg.base_dir == tmp_path.resolve()
+    assert cfg.training_root.exists()
     assert cfg.checkpoints_dir.exists()
     assert cfg.runs_dir.exists()
 
 
-# -----------------------------------------------------------------------------
-# 5. Split validation
-# -----------------------------------------------------------------------------
+def test_postgres_requires_dataset_ids(tmp_path: Path) -> None:
+    # checks that dataset_ids is required in postgres mode
+    data = _base_config_dict(tmp_path)
+    data["dataset_ids"] = None
 
-def test_training_config__invalid_split_sum__fails(tmp_path: Path) -> None:
-    """
-    val_split + test_split must leave room for training data.
-    """
-    data = minimal_jsonl_config(tmp_path)
-    data.update({"val_split": 0.6, "test_split": 0.4})
-
-    with pytest.raises(ValueError, match="val_split \\+ test_split"):
-        TrainingConfig(**data)
+    with pytest.raises(ValidationError, match="dataset_ids must be provided"):
+        TrainingConfig.model_validate(data)
 
 
-# -----------------------------------------------------------------------------
-# 6. Backbone checkpoint validation
-# -----------------------------------------------------------------------------
+def test_postgres_requires_labelset_id(tmp_path: Path) -> None:
+    # checks that labelset_id is required in postgres mode
+    data = _base_config_dict(tmp_path)
+    data["labelset_id"] = None
 
-def test_training_config__nonexistent_checkpoint__fails(tmp_path: Path) -> None:
-    """
-    If a backbone checkpoint is provided, it must exist on disk.
-    """
-    data = minimal_jsonl_config(tmp_path)
-    data["backbone_checkpoint"] = tmp_path / "missing.pth"
-
-    with pytest.raises(ValueError, match="backbone_checkpoint does not exist"):
-        TrainingConfig(**data)
+    with pytest.raises(ValidationError, match="labelset_id must be provided"):
+        TrainingConfig.model_validate(data)
 
 
-def test_training_config__existing_checkpoint__passes(tmp_path: Path) -> None:
-    """
-    Existing checkpoint paths are accepted and normalized.
-    """
-    ckpt = tmp_path / "model.pth"
-    ckpt.write_bytes(b"dummy")
+def test_jsonl_requires_jsonl_path(tmp_path: Path) -> None:
+    # checks that jsonl mode requires jsonl_path
+    data = _base_config_dict(tmp_path)
+    data["data_source"] = "jsonl"
+    data["dataset_ids"] = None
+    data["labelset_id"] = None
+    data["jsonl_path"] = None
 
-    data = minimal_jsonl_config(tmp_path)
-    data["backbone_checkpoint"] = ckpt
-
-    cfg = TrainingConfig(**data)
-
-    assert cfg.backbone_checkpoint == ckpt.resolve()
+    with pytest.raises(ValidationError, match="jsonl_path must be set"):
+        TrainingConfig.model_validate(data)
 
 
-# -----------------------------------------------------------------------------
-# 7. ddict serialization
-# -----------------------------------------------------------------------------
+def test_valid_jsonl_config(tmp_path: Path) -> None:
+    # checks that valid jsonl config passes
+    jsonl_path = tmp_path / "data.jsonl"
+    jsonl_path.write_text(
+        '{"labels": ["polyp"], "old_examination_id": 1, "old_id": 10, "filename": "10.jpg"}\n',
+        encoding="utf-8",
+    )
 
-def test_training_config__to_ddict__paths_are_strings(tmp_path: Path) -> None:
-    """
-    to_ddict() produces a JSON-safe representation with paths as strings.
-    """
-    cfg = TrainingConfig(**minimal_jsonl_config(tmp_path))
-    dd = cfg.to_ddict()
+    data = _base_config_dict(tmp_path)
+    data["data_source"] = "jsonl"
+    data["dataset_ids"] = None
+    data["labelset_id"] = None
+    data["jsonl_path"] = str(jsonl_path)
 
-    assert isinstance(dd["base_dir"], str)
-    assert isinstance(dd["training_root"], str)
-    assert isinstance(dd["checkpoints_dir"], str)
-    assert isinstance(dd["runs_dir"], str)
+    cfg = TrainingConfig.model_validate(data)
+
+    assert cfg.data_source == "jsonl"
+    assert cfg.jsonl_path == jsonl_path
+
+
+def test_missing_checkpoint_fails(tmp_path: Path) -> None:
+    # checks that missing checkpoint file raises error
+    data = _base_config_dict(tmp_path)
+    data["backbone_checkpoint"] = str(tmp_path / "missing.pth")
+
+    with pytest.raises(ValidationError, match="backbone_checkpoint does not exist"):
+        TrainingConfig.model_validate(data)
+
+
+def test_no_checkpoint_is_allowed(tmp_path: Path) -> None:
+    # checks that checkpoint can be None
+    data = _base_config_dict(tmp_path)
+    data["backbone_checkpoint"] = None
+
+    cfg = TrainingConfig.model_validate(data)
+
+    assert cfg.backbone_checkpoint is None
+
+
+def test_checkpoint_env_var_expands(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # checks that env variable in checkpoint path is expanded correctly
+    checkpoint_dir = tmp_path / "ckpts"
+    checkpoint_dir.mkdir()
+    checkpoint = checkpoint_dir / "model.pth"
+    checkpoint.write_bytes(b"fake-checkpoint")
+
+    monkeypatch.setenv("TEST_CKPT_DIR", str(checkpoint_dir))
+
+    data = _base_config_dict(tmp_path)
+    data["backbone_checkpoint"] = "$TEST_CKPT_DIR/model.pth"
+
+    cfg = TrainingConfig.model_validate(data)
+
+    assert cfg.backbone_checkpoint == checkpoint.resolve()
+
+
+def test_invalid_backbone_name_fails(tmp_path: Path) -> None:
+    # checks invalid backbone name is rejected
+    data = _base_config_dict(tmp_path)
+    data["backbone_name"] = "invalid_backbone"
+
+    with pytest.raises(ValidationError):
+        TrainingConfig.model_validate(data)
+
+
+def test_invalid_device_fails(tmp_path: Path) -> None:
+    # checks invalid device value is rejected
+    data = _base_config_dict(tmp_path)
+    data["device"] = "gpu"
+
+    with pytest.raises(ValidationError):
+        TrainingConfig.model_validate(data)
+
+
+def test_invalid_alpha_focal_fails(tmp_path: Path) -> None:
+    # checks alpha_focal must be in valid range
+    data = _base_config_dict(tmp_path)
+    data["alpha_focal"] = 1.5
+
+    with pytest.raises(ValidationError):
+        TrainingConfig.model_validate(data)
+
+
+def test_invalid_num_epochs_fails(tmp_path: Path) -> None:
+    # checks num_epochs must be greater than 0
+    data = _base_config_dict(tmp_path)
+    data["num_epochs"] = 0
+
+    with pytest.raises(ValidationError):
+        TrainingConfig.model_validate(data)
+
+
+def test_extra_fields_are_forbidden(tmp_path: Path) -> None:
+    # checks unknown fields are not allowed
+    data = _base_config_dict(tmp_path)
+    data["unexpected_field"] = "not allowed"
+
+    with pytest.raises(ValidationError):
+        TrainingConfig.model_validate(data)
+
+
+def test_bucket_policy_train_buckets(tmp_path: Path) -> None:
+    # checks train buckets are computed correctly from policy
+    cfg = TrainingConfig.model_validate(_base_config_dict(tmp_path))
+
+    assert cfg.bucket_policy.train_buckets == [0, 1, 2]
+
+
+def test_overlapping_bucket_policy_fails(tmp_path: Path) -> None:
+    # checks validation and test buckets must not overlap
+    data = _base_config_dict(tmp_path)
+    data["bucket_policy"] = {
+        "num_buckets": 5,
+        "validation_buckets": [3],
+        "test_buckets": [3],
+    }
+
+    with pytest.raises(ValidationError, match="must not overlap"):
+        TrainingConfig.model_validate(data)
+
+
+def test_to_ddict_paths_are_strings(tmp_path: Path) -> None:
+    # checks that to_ddict converts all paths to string
+    cfg = TrainingConfig.model_validate(_base_config_dict(tmp_path))
+    ddict = cfg.to_ddict()
+
+    assert isinstance(ddict["base_dir"], str)
+    assert isinstance(ddict["training_root"], str)
+    assert isinstance(ddict["checkpoints_dir"], str)
+    assert isinstance(ddict["runs_dir"], str)
+    assert isinstance(ddict["backbone_checkpoint"], str)
+    assert isinstance(ddict["updated_at"], str)
+
+
+def test_from_yaml_file(tmp_path: Path) -> None:
+    # checks that config can be loaded from yaml file
+    checkpoint = tmp_path / "checkpoint.pth"
+    checkpoint.write_bytes(b"fake-checkpoint")
+
+    yaml_path = tmp_path / "train_config.yaml"
+    yaml_path.write_text(
+        f"""
+dataset_uuid: sandbox_ds
+data_source: postgres
+dataset_ids: [1, 2]
+labelset_id: 5
+labelset_version_to_train: 3
+treat_unlabeled_as_negative: false
+
+base_dir: "{tmp_path}"
+training_root: "{tmp_path / "training"}"
+checkpoints_dir: "{tmp_path / "training" / "checkpoints"}"
+runs_dir: "{tmp_path / "training" / "runs"}"
+create_dirs: true
+
+backbone_name: gastro_rn50
+backbone_checkpoint: "{checkpoint}"
+freeze_backbone: true
+
+num_epochs: 2
+batch_size: 3
+
+lr_head: 0.001
+lr_backbone: 0.0001
+gamma_focal: 2.0
+alpha_focal: 0.25
+
+use_scheduler: true
+warmup_epochs: 2
+min_lr: 1.0e-6
+
+device: cpu
+random_seed: 42
+
+bucket_policy:
+  num_buckets: 5
+  validation_buckets: [3]
+  test_buckets: [4]
+
+save_bucket_snapshot: true
+""",
+        encoding="utf-8",
+    )
+
+    cfg = TrainingConfig.from_yaml_file(yaml_path)
+
+    assert cfg.dataset_uuid == "sandbox_ds"
+    assert cfg.data_source == "postgres"
+    assert cfg.dataset_ids == [1, 2]
+    assert cfg.labelset_id == 5
+    assert cfg.backbone_checkpoint == checkpoint.resolve()
