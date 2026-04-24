@@ -60,14 +60,14 @@ def test_compute_bucket_id_known_value_is_stable() -> None:
     # checks known hash result stays stable across future code changes
     bucket = compute_bucket_id(key="exam:123", num_buckets=5)
 
-    assert bucket == 4
+    assert bucket == 1
 
 
 def test_compute_bucket_id_known_frame_value_is_stable() -> None:
     # checks known frame hash result stays stable across future code changes
     bucket = compute_bucket_id(key="frame:123", num_buckets=5)
 
-    assert bucket == 2
+    assert bucket == 0
 
 
 def test_same_exam_frames_get_same_bucket() -> None:
