@@ -170,7 +170,10 @@ class TestVideoBucketAllocator:
             else:
                 assert video_to_bucket[video_id] == bucket_id
 
-    def test_allocator_split_indices_cover_all_samples_once(self, tmp_path: Path) -> None:
+    def test_allocator_split_indices_cover_all_samples_once(
+        self,
+        tmp_path: Path,
+    ) -> None:
         # checks train validation and test indices cover all samples exactly once
         config = self._config(tmp_path)
         inputs = self._basic_inputs()
@@ -181,9 +184,7 @@ class TestVideoBucketAllocator:
         )
 
         all_indices = (
-            result["train_indices"]
-            + result["val_indices"]
-            + result["test_indices"]
+            result["train_indices"] + result["val_indices"] + result["test_indices"]
         )
 
         assert sorted(all_indices) == list(range(len(inputs["video_ids"])))
@@ -241,7 +242,9 @@ class TestVideoBucketAllocator:
             result["bucket_ids_per_sample"]
         )
 
-    def test_allocator_is_deterministic_with_existing_registry(self, tmp_path: Path) -> None:
+    def test_allocator_is_deterministic_with_existing_registry(
+        self, tmp_path: Path
+    ) -> None:
         # checks second run with same registry gives same result
         config = self._config(tmp_path)
         inputs = self._basic_inputs()
@@ -303,7 +306,9 @@ class TestVideoBucketAllocator:
 
         assert set(registry.videos.keys()) == expected_video_keys
 
-    def test_allocator_reuses_existing_registry_assignment(self, tmp_path: Path) -> None:
+    def test_allocator_reuses_existing_registry_assignment(
+        self, tmp_path: Path
+    ) -> None:
         # checks existing video keeps its old bucket assignment
         config = self._config(tmp_path)
         registry_path = (
@@ -436,7 +441,9 @@ class TestVideoBucketAllocator:
 
         assert result["diagnostics"]["condition"] == "closed_world"
 
-    def test_allocator_diagnostics_contains_video_grouping(self, tmp_path: Path) -> None:
+    def test_allocator_diagnostics_contains_video_grouping(
+        self, tmp_path: Path
+    ) -> None:
         # checks diagnostics include video grouping summary
         config = self._config(tmp_path)
         inputs = self._basic_inputs()
@@ -515,10 +522,10 @@ class TestVideoBucketAllocator:
         # checks allocator does not put many videos into only one bucket
         config = self._config(tmp_path)
 
-        video_ids = []
-        dataset_ids_per_frame = []
-        label_vectors = []
-        label_masks = []
+        video_ids: list[int] = []
+        dataset_ids_per_frame: list[int] = []
+        label_vectors: list[list[int | None]] = []
+        label_masks: list[list[int]] = []
 
         for video_id in range(100, 110):
             video_ids.extend([video_id, video_id])
@@ -614,4 +621,3 @@ class TestVideoBucketAllocator:
         )
 
         assert len(result["bucket_ids_per_sample"]) == len(inputs["video_ids"])
-        
