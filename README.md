@@ -132,7 +132,7 @@ Main place:
 .env
 ```
 
-Recommended local values:
+Recommended local values: (write complete in all variables e.g DATA_DIR=/home/admin/dev/lx-ai/data not DATA_DIR=${WORKING_DIR}/data in .env file)
 
 ```bash
 # Runtime roots
