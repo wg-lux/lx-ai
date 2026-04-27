@@ -1,24 +1,112 @@
 # lx-ai
 
-A PyTorch-based multi-label image classification training framework for endoscopic image analysis.
+A PyTorch-based training framework for multi-label classification of gastroenterology endoscopic images. Designed for both research and production workflows, with strong emphasis on data integrity, reproducibility, and flexible data sourcing.
 
-## Overview
+The framework provides an end-to-end pipeline that handles:
 
-`lx-ai` is a training pipeline for multi-label classification of gastroenterology endoscopic images. It supports:
-# lx-ai
+- Dataset construction
+- Label processing
+- Split generation
+- Model training
+- Evaluation
+- Reporting
 
-A PyTorch-based multi-label image classification training framework for endoscopic image analysis.
+All in a consistent and validated manner.
 
-## Overview
+## Core Capabilities
 
-`lx-ai` is a training pipeline for multi-label classification of gastroenterology endoscopic images. It supports:
+### Multi-label Classification
+- Supports multiple simultaneous labels per image (e.g., polyp, blood, instrument, etc.)
+- Handles incomplete annotations using masking
 
-- PostgreSQL and JSONL data sources
-- GastroNet ResNet50 and standard backbone options
-- Focal loss with per-label weighting and unknown label masking
-- Stable train/validation/test split by video or examination grouping
-- Model export with metadata and training history
-- Unit tests for core config, dataset, metrics, loss, and split logic
+### Flexible Data Sources
+- **PostgreSQL database** — production/service mode
+- **SQLite** — local development mode
+- **Legacy JSONL + image directory** — offline datasets
+
+### Robust Dataset Handling
+- Label filtering by labelset version
+- Explicit handling of:
+  - Known positives
+  - Known negatives
+  - Unknown labels
+- Configurable semantics:
+  - Treat unknown as negative (closed-world)
+  - Ignore unknown (open-world)
+
+### Stable and Reproducible Data Splitting
+- Bucket-based splitting with deterministic hashing
+- Grouping by `video_id` or `old_examination_id`
+- Persistent video bucket registry to ensure:
+  - No data leakage
+  - Stable splits across runs
+  - Reproducibility in experiments
+
+### Model Architecture Flexibility
+- GastroNet ResNet50 (recommended for medical domain)
+- Standard backbones (ImageNet pretrained or random)
+- Easy extension for new architectures
+
+### Training Features
+- Focal loss with:
+  - Per-label class weighting
+  - Masking for unknown labels
+- Separate learning rates for backbone and head
+- Optional backbone freezing
+- Cosine annealing scheduler with warmup
+
+### Evaluation and Metrics
+- Global metrics: precision, recall, F1-score, accuracy
+- Per-label metrics
+- Support for:
+  - Standard evaluation (with negatives)
+  - Positives-only evaluation (when negatives are unavailable)
+
+### Data Validation and Diagnostics
+- Automatic dataset validation reports
+- Label distribution analysis
+- Split integrity checks
+- Dataset imbalance detection
+- Video and dataset-level diagnostics
+
+### Reproducibility and Traceability
+- Full configuration captured in metadata
+- Saved model weights and training history
+- Persistent bucket assignments
+- Deterministic dataset splits
+
+### Production and Development Compatibility
+- Service mode using PostgreSQL (production)
+- Local mode using SQLite (development)
+- Frame path remapping for local debugging of production data
+
+### Testing and Reliability
+- Extensive unit test coverage for:
+  - Configuration validation
+  - Dataset building
+  - Splitting logic
+  - Bucket hashing and allocation
+  - Loss functions and metrics
+  - Database loaders
+
+## Design Principles
+
+lx-ai is built around a few key principles:
+
+### No Data Leakage
+Group-based splitting ensures frames from the same examination or video never cross splits.
+
+### Reproducibility First
+Persistent bucket assignment guarantees identical splits across runs and environments.
+
+### Explicit Label Semantics
+Unknown labels are never silently treated as negatives unless explicitly configured.
+
+### Separation of Concerns
+Data loading, splitting, training, and evaluation are modular and independently testable.
+
+### Production-Aware Design
+The same pipeline works in both local development and service-based production environments.
 
 ## Branches and Database Usage
 
