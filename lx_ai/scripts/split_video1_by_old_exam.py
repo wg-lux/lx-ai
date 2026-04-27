@@ -12,10 +12,45 @@ def make_video_hash(old_exam_id: int) -> str:
     return f"split_exam_{old_exam_id}_{uuid.uuid4().hex}"
 
 
-def fetch_video_columns():
+def get_table_columns(table_name: str) -> list[str]:
+    if connection.vendor == "sqlite":
+        with connection.cursor() as cursor:
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            return [row[1] for row in cursor.fetchall()]
+
     with connection.cursor() as cursor:
-        cursor.execute("PRAGMA table_info(endoreg_db_videofile)")
-        return [row[1] for row in cursor.fetchall()]
+        cursor.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = %s
+            ORDER BY ordinal_position
+            """,
+            [table_name],
+        )
+        return [row[0] for row in cursor.fetchall()]
+
+
+def insert_videofile_and_return_id(insert_sql: str, insert_vals: list[object]) -> int:
+    with connection.cursor() as cursor:
+        if connection.vendor == "postgresql":
+            cursor.execute(insert_sql + " RETURNING id", insert_vals)
+            row = cursor.fetchone()
+            if row is None:
+                raise RuntimeError("INSERT succeeded but no id was returned.")
+            new_video_id = row[0]
+        else:
+            cursor.execute(insert_sql, insert_vals)
+            new_video_id = cursor.lastrowid
+
+    if new_video_id is None:
+        raise RuntimeError("Failed to obtain new videofile id after INSERT.")
+
+    return int(new_video_id)
+
+
+def fetch_video_columns() -> list[str]:
+    return get_table_columns("endoreg_db_videofile")
 
 
 def fetch_source_video_row(source_video_id: int, copy_cols: list[str]):
@@ -231,9 +266,10 @@ def run():
                 VALUES ({placeholders})
             """
 
-            with connection.cursor() as cursor:
-                cursor.execute(insert_sql, insert_vals)
-                new_video_id = cursor.lastrowid
+            new_video_id = insert_videofile_and_return_id(
+                insert_sql=insert_sql,
+                insert_vals=insert_vals,
+            )
 
             with connection.cursor() as cursor:
                 cursor.execute("""
@@ -271,4 +307,5 @@ def run():
     print("=" * 100)
 
 
-run()
+if __name__ == "__main__":
+    run()
