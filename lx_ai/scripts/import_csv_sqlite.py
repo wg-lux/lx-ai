@@ -4,6 +4,7 @@ import csv
 import json
 from pathlib import Path
 from typing import Optional
+import os
 
 from django.db import transaction
 from django.utils import timezone
@@ -26,7 +27,8 @@ from endoreg_db.models import (
 )
 
 
-CSV_DIR = Path("/home/admin/csv")
+#CSV_DIR = Path("/home/admin/csv")
+CSV_DIR = Path(os.getenv("CSV_DIR", "data/import/csv")).expanduser()
 ANNOTATION_CSV = CSV_DIR / "01_annotation.csv"
 FRAME_CSV = CSV_DIR / "02_frame.csv"
 VIDEO_CSV = CSV_DIR / "03_videofile.csv"

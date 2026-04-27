@@ -243,7 +243,7 @@ from pathlib import Path
 
 
 def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
-    db_path = Path("dev_db.sqlite")
+    db_path = Path(os.getenv("SQLITE_DB_PATH", "dev_db.sqlite")).expanduser()
 
     if not db_path.exists():
         raise FileNotFoundError(f"SQLite DB not found: {db_path}")

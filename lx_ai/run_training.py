@@ -14,6 +14,7 @@ import django
 django.setup()
 
 from django.conf import settings
+from lx_ai.utils.path_diagnostics import print_runtime_path_diagnostics
 
 from lx_ai.training.bucket_logic import build_bucket_key, compute_bucket
 from lx_ai.training.bucket_snapshot import save_bucket_snapshot
@@ -30,9 +31,17 @@ print("\n")
 
 def main() -> None:
 
-    cfg = TrainingConfig.from_yaml_file(
-        Path("lx_ai/ai_model_config/train_sandbox_postgres.yaml")
-    )
+    print_runtime_path_diagnostics()
+
+    config_path = Path(
+        os.getenv(
+            "TRAINING_CONFIG_PATH",
+            "lx_ai/ai_model_config/train_sandbox_postgres.yaml",
+        )
+    ).expanduser()
+    
+    cfg = TrainingConfig.from_yaml_file(config_path)
+        
 
     section("TRAINING START")
 

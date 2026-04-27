@@ -6,9 +6,12 @@ from typing import Iterable
 from PIL import Image
 from endoreg_db.models import Frame
 
+import os
 
-SOURCE_ROOT = Path("")
-TARGET_ROOT = Path("")
+SOURCE_ROOT = Path(os.getenv("FRAME_PATH_REMAP_SOURCE", "")).expanduser()
+TARGET_ROOT = Path(os.getenv("FRAME_PATH_REMAP_TARGET", "")).expanduser()
+#SOURCE_ROOT = Path("")
+#TARGET_ROOT = Path("")
 PLACEHOLDER_SIZE = (224, 224)
 
 
@@ -41,6 +44,11 @@ def run() -> None:
     created = 0
     existing = 0
     skipped = 0
+
+    if not str(SOURCE_ROOT) or not str(TARGET_ROOT):
+        raise RuntimeError(
+            "FRAME_PATH_REMAP_SOURCE and FRAME_PATH_REMAP_TARGET must be set"
+        )
 
     for target_path in _iter_target_paths():
         total += 1

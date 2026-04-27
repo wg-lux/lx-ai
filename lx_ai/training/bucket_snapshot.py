@@ -1,12 +1,15 @@
 # lx_ai/training/bucket_snapshot.py
 import json
+import os
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Any
 
 
-BASE_BUCKET_PATH = Path("data/model_training/buckets")
-
+#BASE_BUCKET_PATH = Path("data/model_training/buckets")
+BASE_BUCKET_PATH = Path(
+    os.getenv("BUCKET_SNAPSHOT_DIR", "data/model_training/buckets")
+).expanduser()
 
 def create_run_folder() -> Path:
     """

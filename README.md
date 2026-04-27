@@ -123,6 +123,154 @@ Used for the service-compatible workflow and local development.
 
 ## Quick Start
 
+
+### Paths a new developer should configure
+
+Main place:
+
+```bash
+.env
+```
+
+Recommended local values:
+
+```bash
+# Runtime roots
+HOME_DIR=/home/admin
+WORKING_DIR=/home/admin/dev/lx-ai
+DATA_DIR=/home/admin/dev/lx-ai/data
+CONF_DIR=/home/admin/dev/lx-ai/conf
+STORAGE_DIR=/home/admin/dev/lx-ai/data
+FRAME_DIR=/home/admin/dev/lx-ai/data/frames
+
+# Training outputs
+TRAINING_ROOT=/home/admin/dev/lx-ai/data/model_training
+CHECKPOINTS_DIR=/home/admin/dev/lx-ai/data/model_training/checkpoints
+RUNS_DIR=/home/admin/dev/lx-ai/data/model_training/runs
+BUCKET_SNAPSHOT_DIR=/home/admin/dev/lx-ai/data/model_training/buckets
+
+# Model checkpoint
+BACKBONE_CHECKPOINT=/home/admin/dev/lx-ai/data/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth
+
+# Training config
+TRAINING_CONFIG_PATH=lx_ai/ai_model_config/train_sandbox_postgres.yaml
+
+# Optional JSONL mode
+LEGACY_IMAGE_DIR=/home/admin/dev/lx-ai/data/legacy_images/images
+LEGACY_JSONL_PATH=/home/admin/dev/lx-ai/data/legacy_images/legacy_img_dicts.jsonl
+
+# Optional CSV import
+CSV_DIR=/home/admin/dev/lx-ai/data/import/csv
+
+# Local SQLite
+SQLITE_DB_PATH=/home/admin/dev/lx-ai/dev_db.sqlite
+
+# Frame path remap for local development
+FRAME_PATH_REMAP_SOURCE=/var/endoreg-service-user/lx-annotate/data/frames
+FRAME_PATH_REMAP_TARGET=/home/admin/dev/lx-ai/data/frames_mirror
+```
+
+### Database variables
+
+#### Local development with SQLite
+
+```bash
+DB_BACKEND=sqlite
+DJANGO_SETTINGS_MODULE=lx_ai.settings.settings_dev
+DJANGO_DB_ENGINE=django.db.backends.sqlite3
+```
+
+For SQLite, these PostgreSQL-style values may exist but are not the active DB connection:
+
+```bash
+DJANGO_DB_HOST=
+DJANGO_DB_PORT=
+DJANGO_DB_NAME=
+DJANGO_DB_USER=
+```
+
+#### Production or service with PostgreSQL
+
+These are normally generated in `.env.systemd` by the Luxnix service:
+
+```bash
+DB_BACKEND=postgres
+DJANGO_SETTINGS_MODULE=lx_ai.settings.settings_prod
+DJANGO_DB_ENGINE=django.db.backends.postgresql
+DJANGO_DB_HOST=localhost
+DJANGO_DB_PORT=5432
+DJANGO_DB_NAME=endoregDbLocal
+DJANGO_DB_USER=endoregDbLocal
+DJANGO_DB_PASSWORD_FILE=/var/endoreg-service-user/lx-ai/conf/db_pwd
+DJANGO_DB_SSLMODE=prefer
+```
+
+### Files where these are used
+
+| Path variable             | Purpose                                 | Used in                                        |
+|---------------------------|---------|---------------------------------------------|
+| `DATA_DIR`                | Main data root                          | `secretspec.toml`, `devenv.nix`, training YAML |
+| `CONF_DIR`                | Password and config files               | `secretspec.toml`, service `.env.systemd`      |
+| `FRAME_DIR`               | Default frame directory                 | Django settings and diagnostics                |
+| `TRAINING_ROOT`           | Training artifact root                  | training config                                |
+| `CHECKPOINTS_DIR`         | Backbone checkpoint folder              | training config                                |
+| `RUNS_DIR`                | Saved models, metadata, reports         | training config                                |
+| `BUCKET_SNAPSHOT_DIR`     | Bucket snapshots                        | `lx_ai/training/bucket_snapshot.py`            |
+| `BACKBONE_CHECKPOINT`     | GastroNet checkpoint path               | `train_sandbox_postgres.yaml`                  |
+| `TRAINING_CONFIG_PATH`    | Which YAML file `run_training.py` loads | `lx_ai/run_training.py`                        |
+| `LEGACY_IMAGE_DIR`        | JSONL image folder                      | `data_loader_for_model_input.py`               |
+| `LEGACY_JSONL_PATH`       | JSONL annotation file                   | `data_loader_for_model_input.py`               |
+| `CSV_DIR`                 | CSV import folder                       | `scripts/import_csv_sqlite.py`                 |
+| `SQLITE_DB_PATH`          | Local SQLite DB file                    | SQLite loaders                                 |
+| `FRAME_PATH_REMAP_SOURCE` | Original service frame path prefix      | `data_loader_for_model_training.py`            |
+| `FRAME_PATH_REMAP_TARGET` | Local mirrored frame path prefix        | `data_loader_for_model_training.py`            |
+
+### Training configuration
+
+Edit the following file:
+
+```bash
+lx_ai/ai_model_config/train_sandbox_postgres.yaml
+```
+
+Important fields to configure:
+
+```yaml
+dataset_ids: [1, 2]
+labelset_id: 5
+labelset_version_to_train: 3
+
+backbone_name: gastro_rn50
+backbone_checkpoint: "$BACKBONE_CHECKPOINT"
+
+base_dir: "$DATA_DIR"
+training_root: "$TRAINING_ROOT"
+checkpoints_dir: "$CHECKPOINTS_DIR"
+runs_dir: "$RUNS_DIR"
+```
+
+**For a new dataset**, update:
+
+```yaml
+dataset_ids: [1, 2, 3]
+```
+
+**For a different labelset**, update:
+
+```yaml
+labelset_id: <your_labelset_id>
+labelset_version_to_train: <your_version>
+```
+
+### Verify your paths
+
+Run the path diagnostics to validate your configuration:
+
+```bash
+secretspec run --provider env -- uv run python -c "from lx_ai.utils.path_diagnostics import print_runtime_path_diagnostics; print_runtime_path_diagnostics()"
+```
+
+
 ### Main entry point
 
 ```bash

@@ -68,8 +68,16 @@ else:
 # -----------------------------------------------------------------------------
 # Defaults you gave (can be overridden from CLI or function arguments)
 # -----------------------------------------------------------------------------
-DEFAULT_IMAGE_DIR = Path("/home/admin/dev/legacy_images/images")
-DEFAULT_JSONL_PATH = Path("/home/admin/dev/legacy_images/legacy_img_dicts.jsonl")
+#DEFAULT_IMAGE_DIR = Path("/home/admin/dev/legacy_images/images")
+#DEFAULT_JSONL_PATH = Path("/home/admin/dev/legacy_images/legacy_img_dicts.jsonl")
+
+DEFAULT_IMAGE_DIR = Path(
+    os.getenv("LEGACY_IMAGE_DIR", "data/legacy_images/images")
+).expanduser()
+
+DEFAULT_JSONL_PATH = Path(
+    os.getenv("LEGACY_JSONL_PATH", "data/legacy_images/legacy_img_dicts.jsonl")
+).expanduser()
 
 DEFAULT_LABELS: List[str] = [
     "appendix",
@@ -546,7 +554,7 @@ def load_labelset_from_sqlite(
     Same logic as PostgreSQL version.
     """
      
-    db_path = Path("dev_db.sqlite")
+    db_path = Path(os.getenv("SQLITE_DB_PATH", "dev_db.sqlite")).expanduser()
 
     if not db_path.exists():
         raise FileNotFoundError(f"SQLite DB not found: {db_path}")
