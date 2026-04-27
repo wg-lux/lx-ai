@@ -9,7 +9,7 @@ import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING, TypedDict
+from typing import Any, Dict, Iterable, List, Optional, Sequence, TypedDict
 
 # =============================================================================
 # Third-Party Libraries
@@ -54,7 +54,7 @@ from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseMo
 from lx_ai.utils.db_loader_for_model_input import load_annotations
 
 from lx_ai.ai_model_split.split_sanity_checker import verify_split_disjointness
-
+import sqlite3
 
 """if TYPE_CHECKING:
     from pydantic import BaseModel as _TypedBaseModel
@@ -120,8 +120,7 @@ class ImageMultilabelDatasetDataDict(TypedDict):
     bucket_map: Dict[str, int]
     annotation_positive_count : int
     annotation_negative_count : int
-    allocation_diagnostic: Dict[str, Any]
-
+    allocation_diagnostics: Dict[str, Any]
     
     
 def _empty_labelset_info() -> LabelSetInfo:
@@ -536,10 +535,6 @@ def load_labelset(config, labelset_id: int, labelset_version: int):
         )
     else:
         raise ValueError(f"Unsupported DB backend: {db_backend}")
-    
-import sqlite3
-from pathlib import Path
-
 
 def load_labelset_from_sqlite(
     labelset_id: int,
