@@ -4,461 +4,711 @@ A PyTorch-based multi-label image classification training framework for endoscop
 
 ## Overview
 
-**lx-ai** is a machine learning pipeline for training multi-label classification models on gastroenterology endoscopic images. It supports:
+`lx-ai` is a training pipeline for multi-label classification of gastroenterology endoscopic images. It supports:
+# lx-ai
 
-- **Multi-label classification** of medical images (polyp, blood, water jet, etc.)
-- **Flexible data sources** (PostgreSQL database or legacy JSONL + image directories)
-- **GastroNet backbone** with ResNet50 feature extraction
-- **Focal loss** with per-label class weighting and masking for unknown labels
-- **Group-wise dataset splitting** by examination ID for robust train/val/test separation
-- **Comprehensive training logging** and per-label metrics
+A PyTorch-based multi-label image classification training framework for endoscopic image analysis.
 
-## Branches
-- Branch ```gs02_sandbox_db``` is used to connect to the database on the ```gs-02 server```. 
-- This documentation is based on ```gs02_sandbox_db``` functionality and working is same in ```dev``` too.
-- Branch ```dev``` is used for the local database.
-- To run on dev branch
-```python
+## Overview
+
+`lx-ai` is a training pipeline for multi-label classification of gastroenterology endoscopic images. It supports:
+
+- PostgreSQL and JSONL data sources
+- GastroNet ResNet50 and standard backbone options
+- Focal loss with per-label weighting and unknown label masking
+- Stable train/validation/test split by video or examination grouping
+- Model export with metadata and training history
+- Unit tests for core config, dataset, metrics, loss, and split logic
+
+## Branches and Database Usage
+
+### `sandbox`
+
+Used for sandbox database work and direct PostgreSQL access.
+
+### `prototype`
+
+Used for the service-compatible workflow and local development.
+
+- Service mode: PostgreSQL
+- Local mode: SQLite
+
+## Quick Start
+
+### Main entry point
+
+```bash
+python lx_ai/run_training.py
+```
+
+Or as a module:
+
+```bash
 python -m lx_ai.run_training
 ```
-## Features
 
-### Data Loading
-- Load annotations directly from PostgreSQL (endoreg-db compatible)
-- Support for legacy JSONL format with image directories
-- Automatic label filtering by labelset version
-- Configurable handling of unlabeled data (treat as negative or ignore)
+### Recommended development workflow
 
-### Model Architecture
-- **Backbone options:**
-  - `gastro_rn50` — ResNet50 with GastroNet checkpoint (recommended)
-  - `resnet50_imagenet` — ImageNet pretrained ResNet50
-  - `resnet50_random` — Random weight ResNet50
-  - `efficientnet_b0_imagenet` — ImageNet pretrained EfficientNet-B0
-
-- **Training head:** Fully connected layer for multi-label logits
-- **Freezable backbone:** Option to freeze backbone weights for transfer learning
-
-### Training Features
-- **Focal loss** with configurable α (balance) and γ (focus) parameters
-- **Per-label class weights** computed from positive sample counts
-- **Learning rate scheduling:** Cosine annealing with optional warmup
-- **Separate learning rates** for backbone and classification head
-- **Validation & test splits** with group-wise stratification by examination ID
-
-### Metrics & Logging
-- Global metrics: precision, recall, F1-score, accuracy, confusion counts
-- Per-label metrics for detailed analysis
-- Structured console output with color support
-- Automatic model + metadata saving
-
-## Project Structure
-
+```bash
+cd /home/admin/dev/lx-ai
+devenv shell
+python lx_ai/run_training.py
 ```
-lx-ai/
-├── lx_ai/
-│   ├── ai_model/                          # Model architecture
-│   │   ├── model_backbones.py            # Backbone factory (ResNet, EfficientNet)
-│   │   ├── model_gastronet_resnet.py     # GastroNet wrapper
-│   │   ├── losses.py                     # Focal loss + class weights
-│   │   └── ...
-│   ├── ai_model_dataset/
-│   │   └── dataset.py                    # PyTorch Dataset + spec validation
-│   ├── ai_model_matrics/
-│   │   └── metrics.py                    # Precision, recall, F1, per-label stats
-│   ├── ai_model_training/
-│   │   └── trainer_gastronet_multilabel.py  # Main training loop
-│   ├── ai_model_config/
-│   │   ├── config.py                     # TrainingConfig (Pydantic model)
-│   │   └── train_sandbox_postgres.yaml   # Example config (PostgreSQL)
-│   ├── utils/
-│   │   ├── data_loader_for_model_input.py   # Dataset building (JSONL + DB)
-│   │   ├── db_loader_for_model_input.py     # PostgreSQL loaders
-│   │   ├── logging_utils.py                 # Console formatting
-│   │   └── ...
-│   └── run_training.py                   # Main entry point
-├── data/
-│   ├── model_training/
-│   │   ├── checkpoints/                  # Pretrained backbone weights
-│   │   └── runs/                         # Trained model outputs
-│   └── ...
-├── tests/                                # Unit tests
-├── pyproject.toml                        # Python project config
-├── .env.sandbox                          # Sandbox database credentials
-├── .env.sandbox.example                  # Template for environment variables
-└── README.md                             # This file
-```
-
-## Installation
-
-### Prerequisites
-- Python 3.10+
-- PyTorch with CUDA support (optional but recommended)
-- PostgreSQL (for database mode)
-
-### Setup
-
-1. **Clone and environment setup:**
-   ```bash
-   git clone <repo-url>
-   cd lx-ai
-   uv sync
-   direnv allow
-   source /home/admin/dev/lx-ai/.devenv/state/venv/bin/activate
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   uv pip install -e libs/lx-data-models  # if using lx_dtypes from local lib
-   set -a && source .env.sandbox && set +a
-   unset DEV_DB_PASSWORD  # Use password file instead
-   ```
-
-3. **Verify setup:**
-   ```bash
-   python -c "import torch; print(torch.cuda.is_available())"
-   ```
 
 ## Configuration
 
-### Training Config File
+The primary training config file is:
 
-Create or edit a YAML config file (e.g., `lx_ai/ai_model_config/train_sandbox_postgres.yaml`):
+```text
+lx_ai/ai_model_config/train_sandbox_postgres.yaml
+```
+
+It controls:
+
+- dataset and labelset selection
+- data source
+- model backbone and checkpoint
+- training hyperparameters
+- scheduler settings
+- device selection
+- unknown-label behavior
+
+Example fields:
 
 ```yaml
-# Dataset selection
 dataset_uuid: sandbox_ds
-data_source: postgres              # or "jsonl"
-dataset_id: 1
-labelset_id: 2
-labelset_version_to_train: 2
-
-# Data semantics
-treat_unlabeled_as_negative: true  # false = ignore unknowns
-
-# Model
+data_source: postgres
+dataset_ids: [1, 2]
+labelset_id: 5
+labelset_version_to_train: 3
+treat_unlabeled_as_negative: false
 backbone_name: gastro_rn50
 backbone_checkpoint: /path/to/RN50_GastroNet-1M_DINOv1.pth
 freeze_backbone: true
-
-# Training hyperparameters
 num_epochs: 20
 batch_size: 16
-val_split: 0.1
-test_split: 0.1
-
-# Learning rates
 lr_head: 0.001
 lr_backbone: 0.0001
-
-# Focal loss
 gamma_focal: 2.0
 alpha_focal: 0.25
-
-# Scheduler
 use_scheduler: true
 warmup_epochs: 2
 min_lr: 1.0e-6
-
-# Hardware
 device: cuda
 random_seed: 42
+bucket_policy:
+  num_buckets: 5
+  validation_buckets: [3]
+  test_buckets: [4]
+save_bucket_snapshot: false
 ```
 
-### Environment Variables
+## Supported Backbones
 
-Set up `.env.sandbox` with database credentials:
+Supported backbone names:
+
+- `gastro_rn50`
+- `resnet50_imagenet`
+- `resnet50_random`
+- `efficientnet_b0_imagenet`
+
+Backbones are implemented in `lx_ai/ai_model/model_backbones.py`.
+
+## Data Sources
+
+### PostgreSQL mode
+
+Use `data_source: postgres`.
+
+Database loaders are in:
+
+- `lx_ai/utils/db_loader_for_model_input.py`
+- `lx_ai/utils/data_loader_for_model_input.py`
+
+Connection variables are resolved from:
+
+- `DEV_DB_*` first
+- `DJANGO_DB_*` second
+
+Password resolution supports:
+
+- `*_PASSWORD`
+- `*_PASSWORD_FILE`
+
+### SQLite mode
+
+For local development, set:
 
 ```bash
-DEV_DB_HOST=127.0.0.1
-DEV_DB_PORT=15432
-DEV_DB_NAME=endoreg_sandbox
-DEV_DB_USER=endoreg_sandbox_user
-DEV_DB_PASSWORD_FILE=/etc/secrets/vault/SCRT_local_password_maintenance_password
+export DB_BACKEND=sqlite
 ```
 
-Or use direct password (less secure):
-```bash
-DEV_DB_PASSWORD=your_password
+The local loader supports SQLite through the same input pipeline.
+
+### JSONL mode
+
+Use `data_source: jsonl` and provide:
+
+```yaml
+jsonl_path: /path/to/data.jsonl
 ```
 
-## Usage
+Expected JSONL format:
 
-### Running Training Pipeline
-
-```bash
-# Activate environment
-set -a && source .env.sandbox && set +a
-unset DEV_DB_PASSWORD
-
-# Run training
-python -m lx_ai.run_training
-```
-
-### Remote Database Access (PostgreSQL)
-
-If your database is on a remote machine:
-
-```bash
-# Terminal 1: SSH tunnel (keep open)
-ssh -N -L 15432:127.0.0.1:5432 admin@gs-02
-
-# Terminal 2: Connect to database
-psql "host=127.0.0.1 port=15432 dbname=endoreg_sandbox user=endoreg_sandbox_user"
-```
-
-### Data Sources
-
-#### PostgreSQL Mode
-```python
-config = TrainingConfig.from_yaml_file(
-    Path("lx_ai/ai_model_config/train_sandbox_postgres.yaml")
-)
-# Automatically loads:
-# - annotations from endoreg_db_aidataset_image_annotations
-# - labelset from endoreg_db_labelset + labels
-```
-
-#### JSONL Mode
-```python
-config = TrainingConfig(
-    data_source="jsonl",
-    jsonl_path=Path("data/legacy_images/legacy_img_dicts.jsonl"),
-    treat_unlabeled_as_negative=True,
-)
-```
-
-JSONL format (one JSON object per line):
 ```json
-{"labels": ["polyp", "blood"], "old_examination_id": 25, "old_id": 479228, "filename": "479228.jpg"}
+{"labels": ["polyp"], "old_examination_id": 1, "old_id": 10, "filename": "10.jpg"}
 ```
 
-## Training Pipeline
+## Unknown Label Handling
 
-### 1. Data Loading
-- Fetch annotations + images (PostgreSQL or JSONL)
-- Validate dataset structure
-- Filter labels by labelset version
-- Drop labels with zero positive samples
+Two modes are supported:
 
-### 2. Dataset Split
-- **Group-wise split** by `old_examination_id`
-- Ensures frames from same exam don't leak between train/val/test
-- Stratified sampling: shuffle groups, then assign by ratio
+- `treat_unlabeled_as_negative: false`
+  - Unknown labels are masked out
+  - Loss and metrics ignore unknown values
+- `treat_unlabeled_as_negative: true`
+  - Unknown labels are treated as negative
+  - Use only when missing labels imply negative examples
 
-### 3. Model Initialization
-- Load backbone (ResNet50 + optional GastroNet checkpoint)
-- Attach linear classification head (num_labels outputs)
-- Optionally freeze backbone weights
-- Move model to device (CUDA/CPU)
+## Dataset and Bucket Splitting
 
-### 4. Training Loop (per epoch)
-- **Forward pass:** images → backbone features → logits
-- **Compute loss:** focal loss with per-label class weights + masking
-- **Backward:** gradient descent on head + optionally backbone
-- **LR scheduling:** cosine annealing with warmup (optional)
+The loader builds datasets with:
 
-### 5. Validation
-- Evaluate on validation split
-- Compute global + per-label metrics
-- Log results
+- frame-level multi-label vectors
+- label masks for unknown annotations
+- stable video/examination split assignment
+- bucket policy support for train/validation/test
 
-### 6. Testing
-- Final evaluation on test split
-- Save model weights + metadata JSON
+Bucket policy example:
+
+```yaml
+bucket_policy:
+  num_buckets: 5
+  validation_buckets: [3]
+  test_buckets: [4]
+```
+
+Training buckets are all remaining buckets not assigned to validation or test.
+
+The split logic preserves:
+
+- same-video grouping
+- stable bucket assignments
+- split exclusivity
+- dataset integrity
+
+## Training Flow
+
+Training is managed by:
+
+- `lx_ai/ai_model_training/trainer_gastronet_multilabel.py`
+
+Typical steps:
+
+1. Load `TrainingConfig`
+2. Build dataset
+3. Validate labels and sources
+4. Create PyTorch datasets and loaders
+5. Create model and optimizer
+6. Train for configured epochs
+7. Validate and select best checkpoint
+8. Evaluate test split
+9. Save model weights and metadata
+
+## Loss and Metrics
+
+### Loss
+
+Loss implementation:
+
+- `lx_ai/ai_model/losses.py`
+
+Uses:
+
+- `focal_loss_with_mask`
+- `compute_class_weights`
+
+Supports:
+
+- multi-label logits
+- per-label weights
+- label masks
+- focal alpha and gamma
+
+### Metrics
+
+Metrics implementation:
+
+- `lx_ai/ai_model_matrics/metrics.py`
+
+Supported metrics:
+
+- precision
+- recall
+- F1
+- accuracy
+- TP / FP / TN / FN
+- per-label metrics
+- positives-only metrics when negatives are unavailable
 
 ## Outputs
 
-After training, check `data/model_training/runs/`:
+Trained model artifacts are saved under:
 
-```
-dataset_{uuid}_{backbone}_v{version}_multilabel.pth         # Model weights
-dataset_{uuid}_{backbone}_v{version}_multilabel_meta.json   # Metadata
-```
-
-### Metadata JSON Structure
-```json
-{
-  "config": { ... },                    # Full TrainingConfig as dict
-  "labelset": { "id": 2, "version": 2, "labels": [...] },
-  "used_label_names": ["polyp", "blood", ...],
-  "used_label_indices_original": [0, 1, ...],
-  "history": {
-    "train_loss": [...],
-    "val_loss": [...]
-  },
-  "test_metrics_final": {
-    "precision": 0.85,
-    "recall": 0.82,
-    "f1": 0.83,
-    "accuracy": 0.88,
-    "tp": 1234, "fp": 200, "tn": 5000, "fn": 100,
-    "per_label": [
-      {"precision": 0.90, "recall": 0.88, "f1": 0.89, "support": 150},
-      ...
-    ]
-  }
-}
+```text
+data/model_training/runs/
 ```
 
-## Key Classes & Functions
+Output files:
 
-### Configuration
-- [`TrainingConfig`](lx_ai/ai_model_config/config.py) — Pydantic model for training hyperparameters
-- Loads from YAML, validates paths, computes defaults
+- `dataset_<dataset_uuid>_<backbone_name>_v<labelset_version>_multilabel.pth`
+- `dataset_<dataset_uuid>_<backbone_name>_v<labelset_version>_multilabel_meta.json`
 
-### Data
-- [`MultiLabelDatasetSpec`](lx_ai/ai_model_dataset/dataset.py) — Validated dataset boundary contract
-- [`EndoMultiLabelDataset`](lx_ai/ai_model_dataset/dataset.py) — PyTorch Dataset (images + labels + masks)
-- [`build_dataset_for_training()`](lx_ai/utils/data_loader_for_model_input.py) — Unified loader (JSONL/DB)
+Metadata includes:
 
-### Model
-- [`create_multilabel_model()`](lx_ai/ai_model/model_backbones.py) — Backbone + head factory
-- [`MultiLabelBackboneHead`](lx_ai/ai_model/model_backbones.py) — Model wrapper (trainer interface)
-
-### Training
-- [`train_gastronet_multilabel()`](lx_ai/ai_model_training/trainer_gastronet_multilabel.py) — Main training loop
-- [`focal_loss_with_mask()`](lx_ai/ai_model/losses.py) — Multi-label focal loss with class weights
-- [`compute_metrics()`](lx_ai/ai_model_matrics/metrics.py) — Global + per-label metrics
-
-## Advanced Usage
-
-### Custom Backbone
-
-```python
-from lx_ai.ai_model.model_backbones import create_multilabel_model
-
-model = create_multilabel_model(
-    backbone_name="resnet50_imagenet",  # or other options
-    num_labels=9,
-    backbone_checkpoint=None,
-    freeze_backbone=False,
-)
-```
-
-### Custom Loss Configuration
-
-```python
-from lx_ai.ai_model.losses import FocalLossConfig, focal_loss_with_mask
-
-cfg = FocalLossConfig(alpha=0.5, gamma=1.5)
-loss = focal_loss_with_mask(
-    logits=model_output,
-    targets=labels,
-    masks=known_masks,
-    class_weights=weights,
-    **cfg.model_dump(),
-)
-```
-
-### Inference on New Images
-
-```python
-import torch
-from PIL import Image
-from pathlib import Path
-
-# Load model
-model = create_multilabel_model(
-    backbone_name="gastro_rn50",
-    num_labels=9,
-    backbone_checkpoint=Path("data/model_training/runs/model.pth"),
-    freeze_backbone=True,
-)
-model.eval()
-
-# Preprocess image (same as training)
-img = Image.open("sample.jpg").convert("RGB").resize((224, 224))
-img_tensor = torch.from_numpy(np.array(img, dtype=np.float32) / 255.0).permute(2, 0, 1)
-img_tensor = (img_tensor - MEAN) / STD
-
-# Inference
-with torch.no_grad():
-    logits = model(img_tensor.unsqueeze(0))
-    probs = torch.sigmoid(logits)
-    preds = (probs > 0.5).int()
-```
+- config
+- labelset
+- used labels
+- training history
+- final test metrics
+- bucket policy and sizes
 
 ## Troubleshooting
 
-### Database Connection Issues
-```bash
-# Verify SSH tunnel is open
-lsof -i :15432
+### Missing labelset
 
-# Test connection
-psql "host=127.0.0.1 port=15432 dbname=endoreg_sandbox user=endoreg_sandbox_user"
+Verify `labelset_id` and `labelset_version_to_train` exist in the database.
+
+### Empty dataset
+
+Check `dataset_ids` and ensure annotations exist for those IDs.
+
+### Image file not found
+
+For local development against service database paths, remap frame roots:
+
+```bash
+export FRAME_PATH_REMAP_SOURCE="/var/endoreg-service-user/lx-annotate/data/frames"
+export FRAME_PATH_REMAP_TARGET="/home/admin/dev/lx-ai/data/frames_mirror"
 ```
 
-### Environment Variable Issues
+### Missing GastroNet checkpoint
+
+Verify the path for `RN50_GastroNet-1M_DINOv1.pth`.
+
+### PostgreSQL password errors
+
+Use one of:
+
 ```bash
-# Clear any conflicting variables
-unset DJANGO_SETTINGS_MODULE DEV_DB_ENGINE
-
-# Load sandbox env
-set -a && source .env.sandbox && set +a
-
-# Verify
-echo $DEV_DB_HOST $DEV_DB_PORT
+export DEV_DB_PASSWORD=your_password
 ```
 
-### CUDA/Device Issues
-```bash
-# Check GPU availability
-python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+or
 
-# Force CPU (if CUDA issues)
-# Edit config: device: cpu
+```bash
+export DEV_DB_PASSWORD_FILE=/path/to/password/file
 ```
 
-### Model Not Loading
-```bash
-# Verify checkpoint file exists and is readable
-ls -lh data/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth
+Service mode uses the `DJANGO_DB_*` equivalents.
 
-# Check for Pylance torchvision warnings (set up interpreter correctly in VSCode)
+## Testing
+
+Run tests with:
+
+```bash
+pytest -q
 ```
 
-## Development
+Run a single file:
 
-### Running Tests
 ```bash
-pytest tests/ -v
+pytest tests/ai_model_config/test_training_config.py -q --no-cov
+```
+Run both:
+
+```bash
+pytest -q
 ```
 
-### Code Style
-- Type hints: Pylance-compatible (avoid `# type: ignore` when possible)
-- Validation: Pydantic for boundary contracts
-- Logging: Use [`section()` / `subsection()`](lx_ai/utils/logging_utils.py) for structured output
+## Project Structure
 
-### Adding New Backbones
-
-1. Add factory function in [`model_backbones.py`](lx_ai/ai_model/model_backbones.py)
-2. Update `BackboneName` literal type
-3. Add case in `create_multilabel_model()`
+```text
+lx-ai/
+├── lx_ai/
+│   ├── ai_model/
+│   ├── ai_model_config/
+│   ├── ai_model_dataset/
+│   ├── ai_model_matrics/
+│   ├── ai_model_split/
+│   ├── ai_model_training/
+│   ├── data_validation/
+│   ├── scripts/
+│   ├── utils/
+│   └── run_training.py
+├── tests/
+├── data/
+├── pyproject.toml
+└── README.md
+```
 
 ## License
 
 MIT License © 2025 AG-Lux
 
-See [LICENSE](LICENSE) for details.
+See `LICENSE` for details.
+- PostgreSQL and JSONL data sources
+- GastroNet ResNet50 and standard backbone options
+- Focal loss with per-label weighting and unknown label masking
+- Stable train/validation/test split by video or examination grouping
+- Model export with metadata and training history
+- Unit tests for core config, dataset, metrics, loss, and split logic
 
-## Citation
+## Branches and Database Usage
 
-If you use lx-ai in your research, please cite:
+### `gs02_sandbox_db`
 
-```bibtex
-@software{lxai2025,
-  title={lx-ai: Multi-Label Image Classification for Endoscopy},
-  author={AG-Lux},
-  year={2025},
-  url={https://github.com/ag-lux/lx-ai}
-}
+Used for sandbox database work and direct PostgreSQL access on our own server gs-02.
+how to run it can be found here ```https://github.com/wg-lux/lx-ai/wiki/AI-Model---Running-Commands#lx-ai---gs02_sandbox_db```
+
+### `prototype`
+
+Used for the service-compatible workflow and local development.
+
+- Service mode: PostgreSQL
+- Local mode: SQLite
+
+## Quick Start
+
+### Main entry point
+
+```bash
+python lx_ai/run_training.py
 ```
 
-## Support
+Or as a module:
 
-For issues, questions, or contributions:
-- Check [CONTRIBUTING.md](CONTRIBUTING.md)
-- Open an issue on GitHub
-- Contact: [your contact info]
+```bash
+python -m lx_ai.run_training
+```
+
+### Recommended development workflow
+
+```bash
+cd /home/admin/dev/lx-ai
+devenv shell
+python lx_ai/run_training.py
+```
+
+## Configuration
+
+The primary training config file is:
+
+```text
+lx_ai/ai_model_config/train_sandbox_postgres.yaml
+```
+
+It controls:
+
+- dataset and labelset selection
+- data source
+- model backbone and checkpoint
+- training hyperparameters
+- scheduler settings
+- device selection
+- unknown-label behavior
+
+Example fields:
+
+```yaml
+dataset_uuid: sandbox_ds
+data_source: postgres
+dataset_ids: [1, 2]
+labelset_id: 5
+labelset_version_to_train: 3
+treat_unlabeled_as_negative: false
+backbone_name: gastro_rn50
+backbone_checkpoint: /path/to/RN50_GastroNet-1M_DINOv1.pth
+freeze_backbone: true
+num_epochs: 20
+batch_size: 16
+lr_head: 0.001
+lr_backbone: 0.0001
+gamma_focal: 2.0
+alpha_focal: 0.25
+use_scheduler: true
+warmup_epochs: 2
+min_lr: 1.0e-6
+device: cuda
+random_seed: 42
+bucket_policy:
+  num_buckets: 5
+  validation_buckets: [3]
+  test_buckets: [4]
+save_bucket_snapshot: false
+```
+
+## Supported Backbones
+
+Supported backbone names:
+
+- `gastro_rn50`
+- `resnet50_imagenet`
+- `resnet50_random`
+- `efficientnet_b0_imagenet`
+
+Backbones are implemented in `lx_ai/ai_model/model_backbones.py`.
+
+## Data Sources
+
+### PostgreSQL mode
+
+Use `data_source: postgres`.
+
+Database loaders are in:
+
+- `lx_ai/utils/db_loader_for_model_input.py`
+- `lx_ai/utils/data_loader_for_model_input.py`
+
+Connection variables are resolved from:
+
+- `DEV_DB_*` first
+- `DJANGO_DB_*` second
+
+Password resolution supports:
+
+- `*_PASSWORD`
+- `*_PASSWORD_FILE`
+
+### SQLite mode
+
+For local development, set:
+
+```bash
+export DB_BACKEND=sqlite
+```
+
+The local loader supports SQLite through the same input pipeline.
+
+### JSONL mode
+
+Use `data_source: jsonl` and provide:
+
+```yaml
+jsonl_path: /path/to/data.jsonl
+```
+
+Expected JSONL format:
+
+```json
+{"labels": ["polyp"], "old_examination_id": 1, "old_id": 10, "filename": "10.jpg"}
+```
+
+## Unknown Label Handling
+
+Two modes are supported:
+
+- `treat_unlabeled_as_negative: false`
+  - Unknown labels are masked out
+  - Loss and metrics ignore unknown values
+- `treat_unlabeled_as_negative: true`
+  - Unknown labels are treated as negative
+  - Use only when missing labels imply negative examples
+
+## Dataset and Bucket Splitting
+
+The loader builds datasets with:
+
+- frame-level multi-label vectors
+- label masks for unknown annotations
+- stable video/examination split assignment
+- bucket policy support for train/validation/test
+
+Bucket policy example:
+
+```yaml
+bucket_policy:
+  num_buckets: 5
+  validation_buckets: [3]
+  test_buckets: [4]
+```
+
+Training buckets are all remaining buckets not assigned to validation or test.
+
+The split logic preserves:
+
+- same-video grouping
+- stable bucket assignments
+- split exclusivity
+- dataset integrity
+
+## Training Flow
+
+Training is managed by:
+
+- `lx_ai/ai_model_training/trainer_gastronet_multilabel.py`
+
+Typical steps:
+
+1. Load `TrainingConfig`
+2. Build dataset
+3. Validate labels and sources
+4. Create PyTorch datasets and loaders
+5. Create model and optimizer
+6. Train for configured epochs
+7. Validate and select best checkpoint
+8. Evaluate test split
+9. Save model weights and metadata
+
+## Loss and Metrics
+
+### Loss
+
+Loss implementation:
+
+- `lx_ai/ai_model/losses.py`
+
+Uses:
+
+- `focal_loss_with_mask`
+- `compute_class_weights`
+
+Supports:
+
+- multi-label logits
+- per-label weights
+- label masks
+- focal alpha and gamma
+
+### Metrics
+
+Metrics implementation:
+
+- `lx_ai/ai_model_matrics/metrics.py`
+
+Supported metrics:
+
+- precision
+- recall
+- F1
+- accuracy
+- TP / FP / TN / FN
+- per-label metrics
+- positives-only metrics when negatives are unavailable
+
+## Outputs
+
+Trained model artifacts are saved under:
+
+```text
+data/model_training/runs/
+```
+
+Output files:
+
+- `dataset_<dataset_uuid>_<backbone_name>_v<labelset_version>_multilabel.pth`
+- `dataset_<dataset_uuid>_<backbone_name>_v<labelset_version>_multilabel_meta.json`
+
+Metadata includes:
+
+- config
+- labelset
+- used labels
+- training history
+- final test metrics
+- bucket policy and sizes
+
+## Troubleshooting
+
+### Missing labelset
+
+Verify `labelset_id` and `labelset_version_to_train` exist in the database.
+
+### Empty dataset
+
+Check `dataset_ids` and ensure annotations exist for those IDs.
+
+### Image file not found
+
+For local development against service database paths, remap frame roots:
+
+```bash
+export FRAME_PATH_REMAP_SOURCE="/var/endoreg-service-user/lx-annotate/data/frames"
+export FRAME_PATH_REMAP_TARGET="/home/admin/dev/lx-ai/data/frames_mirror"
+```
+
+### Missing GastroNet checkpoint
+
+Verify the path for `RN50_GastroNet-1M_DINOv1.pth`.
+
+### PostgreSQL password errors
+
+Use one of:
+
+```bash
+export DEV_DB_PASSWORD=your_password
+```
+
+or
+
+```bash
+export DEV_DB_PASSWORD_FILE=/path/to/password/file
+```
+
+Service mode uses the `DJANGO_DB_*` equivalents.
+
+## Testing
+
+Run tests with:
+
+```bash
+pytest -q
+```
+
+and
+
+```bash
+pytest --cov=lx_ai --cov-report=html
+
+# then open
+firefox htmlcov/index.html 
+```
+
+Run a single file:
+
+```bash
+pytest tests/ai_model_config/test_training_config.py -q --no-cov
+```
+
+Run both:
+
+```bash
+pytest -q
+```
+
+## Project Structure
+
+```text
+lx-ai/
+├── lx_ai/
+│   ├── ai_model/
+│   ├── ai_model_config/
+│   ├── ai_model_dataset/
+│   ├── ai_model_matrics/
+│   ├── ai_model_split/
+│   ├── ai_model_training/
+│   ├── data_validation/
+│   ├── scripts/
+│   ├── utils/
+│   └── run_training.py
+├── tests/
+├── data/
+├── pyproject.toml
+└── README.md
+```
+
+## License
+
+MIT License © 2025 AG-Lux
+
+See `LICENSE` for details.
