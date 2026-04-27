@@ -117,17 +117,15 @@ def test_bucket_distribution_hits_all_buckets_for_many_samples() -> None:
 
 
 def test_compute_bucket_id_rejects_zero_num_buckets() -> None:
-    # checks zero buckets is invalid because modulo by zero is impossible
-    with pytest.raises(ZeroDivisionError):
+    # checks zero buckets is rejected with a clear validation error
+    with pytest.raises(ValueError, match="num_buckets must be >= 1"):
         compute_bucket_id(key="frame:1", num_buckets=0)
 
 
-def test_compute_bucket_id_rejects_negative_num_buckets_by_result_expectation() -> None:
-    # checks negative num_buckets should not be used
-    # current function does not validate this, so this documents current unsafe behavior
-    bucket = compute_bucket_id(key="frame:1", num_buckets=-5)
-
-    assert bucket <= 0
+def test_compute_bucket_id_rejects_negative_num_buckets() -> None:
+    # checks negative bucket count is rejected before hashing
+    with pytest.raises(ValueError, match="num_buckets must be >= 1"):
+        compute_bucket_id(key="frame:1", num_buckets=-5)
 
 
 def test_compute_bucket_key_accepts_zero_ids() -> None:
