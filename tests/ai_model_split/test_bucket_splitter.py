@@ -81,8 +81,8 @@ def test_bucket_split_policy_rejects_multiple_test_buckets() -> None:
         )
 
 
-def test_bucket_split_policy_rejects_duplicate_validation_buckets() -> None:
-    # checks duplicate validation buckets are rejected
+def test_bucket_split_policy_rejects_duplicate_validation_bucket_list_as_multiple_buckets() -> None:
+    # checks duplicate validation bucket list is rejected because only one validation bucket is allowed
     with pytest.raises(ValidationError, match="validation_buckets must contain exactly one"):
         BucketSplitPolicy(
             num_buckets=5,
@@ -91,8 +91,8 @@ def test_bucket_split_policy_rejects_duplicate_validation_buckets() -> None:
         )
 
 
-def test_bucket_split_policy_rejects_duplicate_test_buckets() -> None:
-    # checks duplicate test buckets are rejected
+def test_bucket_split_policy_rejects_duplicate_test_bucket_list_as_multiple_buckets() -> None:
+    # checks duplicate test bucket list is rejected because only one test bucket is allowed
     with pytest.raises(ValidationError, match="test_buckets must contain exactly one"):
         BucketSplitPolicy(
             num_buckets=5,
