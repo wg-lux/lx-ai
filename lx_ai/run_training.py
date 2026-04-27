@@ -30,9 +30,15 @@ print("\n")
 
 def main() -> None:
 
-    cfg = TrainingConfig.from_yaml_file(
-        Path("lx_ai/ai_model_config/train_sandbox_postgres.yaml")
-    )
+    config_path = Path(
+        os.getenv(
+            "TRAINING_CONFIG_PATH",
+            "lx_ai/ai_model_config/train_sandbox_postgres.yaml",
+        )
+    ).expanduser()
+    
+    cfg = TrainingConfig.from_yaml_file(config_path)
+        
 
     section("TRAINING START")
 
