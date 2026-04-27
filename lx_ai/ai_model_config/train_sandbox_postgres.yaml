@@ -5,7 +5,7 @@ dataset_uuid: sandbox_ds
 # ------------------------------
 # DATA SOURCE
 # ------------------------------
-data_source: postgres
+data_source: postgres #jsonl or postgres
 dataset_ids: [1,2] #When new dataset comes:dataset_ids: [1, 2]
 
 labelset_id: 5

@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Iterable
 
 from lx_ai.utils.logging_utils import kv, section, subsection, table_header
+from django.conf import settings
+from django.db import connection
 
 
 PATH_ENV_KEYS: tuple[str, ...] = (
@@ -95,3 +97,11 @@ def print_runtime_path_diagnostics() -> None:
     kv("Data dir", os.getenv("DATA_DIR", "N/A"))
     kv("Frame dir", os.getenv("FRAME_DIR", "N/A"))
     kv("Checkpoint", os.getenv("BACKBONE_CHECKPOINT", "N/A"))
+
+    subsection("ACTIVE DJANGO DATABASE")
+
+    db_cfg = settings.DATABASES["default"]
+    kv("Django settings", settings.SETTINGS_MODULE)
+    kv("Django DB vendor", connection.vendor)
+    kv("Django DB engine", db_cfg.get("ENGINE"))
+    kv("Django DB name/path", db_cfg.get("NAME"))
