@@ -136,38 +136,48 @@ Recommended local values:
 
 ```bash
 # Runtime roots
-HOME_DIR=/home/admin
-WORKING_DIR=/home/admin/dev/lx-ai
-DATA_DIR=/home/admin/dev/lx-ai/data
-CONF_DIR=/home/admin/dev/lx-ai/conf
-STORAGE_DIR=/home/admin/dev/lx-ai/data
-FRAME_DIR=/home/admin/dev/lx-ai/data/frames
+# Root of your system (user-specific)
+HOME_DIR=/home/<your-user>
+# Path where lx-ai repository is cloned
+WORKING_DIR=${HOME_DIR}/dev/lx-ai
+# Main data directory (all runtime data)
+DATA_DIR=${WORKING_DIR}/data
+# Configuration directory (passwords, configs)
+CONF_DIR=${WORKING_DIR}/conf
+# Storage root (usually same as DATA_DIR)
+STORAGE_DIR=${DATA_DIR}
+# Frame storage (extracted images)
+FRAME_DIR=${DATA_DIR}/frames
 
 # Training outputs
-TRAINING_ROOT=/home/admin/dev/lx-ai/data/model_training
-CHECKPOINTS_DIR=/home/admin/dev/lx-ai/data/model_training/checkpoints
-RUNS_DIR=/home/admin/dev/lx-ai/data/model_training/runs
-BUCKET_SNAPSHOT_DIR=/home/admin/dev/lx-ai/data/model_training/buckets
+# Root for all training artifacts
+TRAINING_ROOT=${DATA_DIR}/model_training
+# Pretrained and saved model checkpoints
+CHECKPOINTS_DIR=${TRAINING_ROOT}/checkpoints
+# Training outputs (models, logs, metadata)
+RUNS_DIR=${TRAINING_ROOT}/runs
+# Bucket snapshots (split reproducibility)
+BUCKET_SNAPSHOT_DIR=${TRAINING_ROOT}/buckets
 
 # Model checkpoint
-BACKBONE_CHECKPOINT=/home/admin/dev/lx-ai/data/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth
+BACKBONE_CHECKPOINT=${CHECKPOINTS_DIR}/RN50_GastroNet-1M_DINOv1.pth
 
-# Training config
+# Training config-a relative path inside the repository.
 TRAINING_CONFIG_PATH=lx_ai/ai_model_config/train_sandbox_postgres.yaml
 
-# Optional JSONL mode
-LEGACY_IMAGE_DIR=/home/admin/dev/lx-ai/data/legacy_images/images
-LEGACY_JSONL_PATH=/home/admin/dev/lx-ai/data/legacy_images/legacy_img_dicts.jsonl
+# Optional JSONL mode - data_source: jsonl
+LEGACY_IMAGE_DIR=${DATA_DIR}/legacy_images/images
+LEGACY_JSONL_PATH=${DATA_DIR}/legacy_images/legacy_img_dicts.jsonl
 
-# Optional CSV import
-CSV_DIR=/home/admin/dev/lx-ai/data/import/csv
+# Optional CSV import - used by lx_ai/scripts/import_csv_sqlite.py
+CSV_DIR=${DATA_DIR}/import/csv
 
 # Local SQLite
-SQLITE_DB_PATH=/home/admin/dev/lx-ai/dev_db.sqlite
+SQLITE_DB_PATH=${WORKING_DIR}/dev_db.sqlite
 
 # Frame path remap for local development
 FRAME_PATH_REMAP_SOURCE=/var/endoreg-service-user/lx-annotate/data/frames
-FRAME_PATH_REMAP_TARGET=/home/admin/dev/lx-ai/data/frames_mirror
+FRAME_PATH_REMAP_TARGET=${WORKING_DIR}/data/frames_mirror
 ```
 
 ### Database variables
@@ -176,8 +186,9 @@ FRAME_PATH_REMAP_TARGET=/home/admin/dev/lx-ai/data/frames_mirror
 
 ```bash
 DB_BACKEND=sqlite
-DJANGO_SETTINGS_MODULE=lx_ai.settings.settings_dev
+DJANGO_SETTINGS_MODULE=${WORKING_DIR}.settings.settings_dev
 DJANGO_DB_ENGINE=django.db.backends.sqlite3
+SQLITE_DB_PATH=${WORKING_DIR}/dev_db.sqlite
 ```
 
 For SQLite, these PostgreSQL-style values may exist but are not the active DB connection:
@@ -195,13 +206,13 @@ These are normally generated in `.env.systemd` by the Luxnix service:
 
 ```bash
 DB_BACKEND=postgres
-DJANGO_SETTINGS_MODULE=lx_ai.settings.settings_prod
+DJANGO_SETTINGS_MODULE=SQLITE_DB_PATH=${WORKING_DIR}.settings.settings_prod
 DJANGO_DB_ENGINE=django.db.backends.postgresql
 DJANGO_DB_HOST=localhost
 DJANGO_DB_PORT=5432
-DJANGO_DB_NAME=endoregDbLocal
-DJANGO_DB_USER=endoregDbLocal
-DJANGO_DB_PASSWORD_FILE=/var/endoreg-service-user/lx-ai/conf/db_pwd
+DJANGO_DB_NAME=<database_name> #e.g endoregDbLocal
+DJANGO_DB_USER=<database_user> #e.g endoregDbLocal
+DJANGO_DB_PASSWORD_FILE=${CONF_DIR}/db_pwd  # e.g /var/endoreg-service-user/lx-ai/conf/db_pwd
 DJANGO_DB_SSLMODE=prefer
 ```
 
