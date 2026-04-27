@@ -15,6 +15,7 @@ from typing import (
     TypeGuard,
     cast,
 )
+import os
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -69,6 +70,9 @@ class ImageMultilabelDatasetDataDict(TypedDict):
     labelset: Any
     frame_ids: List[int]
     old_examination_ids: List[Optional[int]]
+    dataset_ids_per_frame: List[int]
+    video_ids: List[int]
+    annotators_per_frame: List[List[Any]]
 
 
 class ImageMultilabelDataset(AppBaseModel):
@@ -89,6 +93,10 @@ class ImageMultilabelDataset(AppBaseModel):
 
     label_vectors: List[List[Optional[int]]] = Field(..., min_length=1)
     label_masks: List[List[int]] = Field(..., min_length=1)
+
+    dataset_ids_per_frame: List[int] = Field(..., min_length=1)
+    video_ids: List[int] = Field(..., min_length=1)
+    annotators_per_frame: List[List[Any]] = Field(..., min_length=1)
 
     labels: List[Any] = Field(default_factory=list)
     labelset: Any = Field(...)
@@ -134,6 +142,24 @@ class ImageMultilabelDataset(AppBaseModel):
                 "frame_ids and old_examination_ids must align with samples. "
                 f"Got image_paths={n}, frame_ids={len(self.frame_ids)}, old_examination_ids={len(self.old_examination_ids)}"
             )
+        
+        if len(self.dataset_ids_per_frame) != n:
+            raise ValueError(
+                f"dataset_ids_per_frame must align with samples. "
+                f"Got {len(self.dataset_ids_per_frame)} vs samples={n}"
+            )
+
+        if len(self.video_ids) != n:
+            raise ValueError(
+                f"video_ids must align with samples. "
+                f"Got {len(self.video_ids)} vs samples={n}"
+            )
+
+        if len(self.annotators_per_frame) != n:
+            raise ValueError(
+                f"annotators_per_frame must align with samples. "
+                f"Got {len(self.annotators_per_frame)} vs samples={n}"
+            )
 
         c = len(self.label_vectors[0])
         if c == 0:
@@ -173,6 +199,9 @@ class ImageMultilabelDataset(AppBaseModel):
             labelset=self.labelset,
             frame_ids=self.frame_ids,
             old_examination_ids=self.old_examination_ids,
+            dataset_ids_per_frame=self.dataset_ids_per_frame,
+            video_ids=self.video_ids,
+            annotators_per_frame=self.annotators_per_frame,
         )
 
 
@@ -400,6 +429,10 @@ def build_image_multilabel_dataset(
     frame_ids: List[int] = []
     old_examination_ids: List[Optional[int]] = []
 
+    dataset_ids_per_frame: List[int] = []
+    video_ids: List[int] = []
+    annotators_per_frame: List[List[Any]] = []
+
     # Optional cache: frame_by_id
     frame_by_id: Dict[int, Any] = {}
 
@@ -417,8 +450,13 @@ def build_image_multilabel_dataset(
         '''file_path_raw = _require(frame, "file_path")
         file_path = Path(str(file_path_raw)).expanduser().resolve()
         image_paths.append(file_path)'''
+        
 
-        frame_dir = _require(frame, "file_path")
+        # As currenlty, dataset has restricted frame_dir, which is not accessible as a local user for this service user is required, for verification we commented
+        # liine 456 to 470 and in place of this added new logic that change sthe path to /home/admin/dev/lx-ai/data/frames_mirror/<hash>/frame_x.jpg and generated placeholder image at 
+        # lx_ai/scripts/materialize_missing_frames_remap.py, to set this before running script run export restricted path and then local path like export FRAME_PATH_REMAP_TARGET="/home/admin/dev/lx-ai/data/frames_mirror".
+        # How to go back to the real paths: Just unset the variables: unset FRAME_PATH_REMAP_SOURCE and unset FRAME_PATH_REMAP_TARGET
+        '''frame_dir = _require(frame, "file_path")
         relative_path = _require(frame, "relative_path")
 
         file_path = (
@@ -432,7 +470,37 @@ def build_image_multilabel_dataset(
 
         if not file_path.is_file():
             raise FileNotFoundError(f"Image file not found: {file_path}"
-                                    f"(frame_dir={frame_dir}, relative_path={relative_path})")
+                                    f"(frame_dir={frame_dir}, relative_path={relative_path})")'''
+        
+        frame_dir = _require(frame, "file_path")
+        relative_path = _require(frame, "relative_path")
+        
+        raw_frame_dir = Path(str(frame_dir))
+        rel_path = Path(str(relative_path))
+        
+        remap_source = os.getenv("FRAME_PATH_REMAP_SOURCE", "").strip()
+        remap_target = os.getenv("FRAME_PATH_REMAP_TARGET", "").strip()
+        
+        if remap_source and remap_target:
+            try:
+                raw_frame_dir_str = str(raw_frame_dir)
+                if raw_frame_dir_str.startswith(remap_source):
+                    raw_frame_dir = Path(
+                        raw_frame_dir_str.replace(remap_source, remap_target, 1)
+                    )
+            except Exception:
+                pass
+        
+        file_path = (raw_frame_dir / rel_path).expanduser().resolve()
+        image_paths.append(file_path)
+        
+        if not file_path.is_file():
+            raise FileNotFoundError(
+                f"Image file not found: {file_path}"
+                f"(frame_dir={frame_dir}, relative_path={relative_path})"
+            )
+        
+    
 
         vec: List[Optional[int]] = [None] * num_labels
 
@@ -452,6 +520,25 @@ def build_image_multilabel_dataset(
             value = bool(_require(ann, "value"))
             vec[idx] = 1 if value else 0
         
+        dataset_id_raw = _get(frame_annotations[0], "dataset_id", None)
+        if not isinstance(dataset_id_raw, int):
+            raise ValueError(f"Missing or invalid dataset_id for frame_id={frame_id}")
+        dataset_ids_per_frame.append(dataset_id_raw)
+
+        video_id_raw = _get(frame, "video_id", None)
+        if not isinstance(video_id_raw, int):
+            raise ValueError(f"Missing or invalid video_id for frame_id={frame_id}")
+        video_ids.append(video_id_raw)
+
+        annotators_seen = sorted(
+            {
+                _get(ann, "annotator", None)
+                for ann in frame_annotations
+                if _get(ann, "annotator", None) is not None
+            },
+            key=lambda x: str(x),
+        )
+        annotators_per_frame.append(list(annotators_seen))
         # Optional closed-world assumption (ONLY per-frame)
         if treat_unlabeled_as_negative:
             for j in range(num_labels):
@@ -490,6 +577,9 @@ def build_image_multilabel_dataset(
         labelset=labelset,
         frame_ids=frame_ids,
         old_examination_ids=old_examination_ids,
+        dataset_ids_per_frame=dataset_ids_per_frame,
+        video_ids=video_ids,
+        annotators_per_frame=annotators_per_frame,
     )
     return ds.to_ddict()
 

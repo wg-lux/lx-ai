@@ -268,7 +268,8 @@ class TrainingConfig(AppBaseModel):
     def to_ddict(self) -> TrainingConfigDataDict:
         # AppBaseModel.model_dump() already excludes source_file + created_at
         # but we also want to ensure Path fields are rendered as strings.
-        data = self.model_dump()
+        #data = self.model_dump()
+        data = self.model_dump(mode="json")
 
         # In case json encoders don’t stringify Paths in your environment,
         # enforce conversion here (extra safe + stable meta dumps).

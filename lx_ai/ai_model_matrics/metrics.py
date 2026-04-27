@@ -171,6 +171,15 @@ class PosOnlyMetrics(TypedDict):
     mean_prob_pos: float        # mean sigmoid prob on known positives
     num_pos: int                # number of known positives evaluated
 
+class PosOnlyPerLabelMetrics(TypedDict):
+    recall_pos: Optional[float]
+    mean_prob_pos: Optional[float]
+    positive_support: int
+    known_count: int
+    unknown_count: int
+class PosOnlyPerLabelResult(TypedDict):
+    per_label: List[PosOnlyPerLabelMetrics]
+
 
 def compute_pos_only_metrics(
     logits: torch.Tensor,
@@ -204,3 +213,76 @@ def compute_pos_only_metrics(
     mean_prob_pos = float(probs[pos_valid].mean().item())
 
     return {"recall_pos": recall_pos, "mean_prob_pos": mean_prob_pos, "num_pos": num_pos}
+
+def compute_pos_only_metrics_per_label(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    masks: torch.Tensor,
+    threshold: float = 0.5,
+) -> PosOnlyPerLabelResult:
+    """
+    Per-label metrics for positives-only / unknown-ignored evaluation.
+
+    For each label:
+      - recall_pos: fraction of known positives predicted positive
+      - mean_prob_pos: mean sigmoid probability over known positives
+      - positive_support: number of known positives
+      - known_count: number of known entries (mask==1)
+      - unknown_count: number of unknown entries (mask==0)
+
+    Unknown labels are ignored for recall/probability computation.
+    """
+
+    _require_2d("logits", logits)
+    _require_2d("targets", targets)
+    _require_2d("masks", masks)
+    _require_same_shape("logits", logits, "targets", targets)
+    _require_same_shape("logits", logits, "masks", masks)
+
+    probs = torch.sigmoid(logits)
+    preds = (probs >= threshold).to(dtype=torch.int64)
+
+    t = targets.to(dtype=torch.int64)
+    m = masks.to(dtype=torch.int64)
+
+    num_labels = int(t.shape[1])
+    per_label: List[PosOnlyPerLabelMetrics] = []
+
+    for j in range(num_labels):
+        t_j = t[:, j]
+        m_j = m[:, j]
+        p_j = preds[:, j]
+        prob_j = probs[:, j]
+
+        known_count = int((m_j == 1).sum().item())
+        unknown_count = int((m_j == 0).sum().item())
+
+        pos_valid = (m_j == 1) & (t_j == 1)
+        positive_support = int(pos_valid.sum().item())
+
+        if positive_support == 0:
+            per_label.append(
+                {
+                    "recall_pos": None,
+                    "mean_prob_pos": None,
+                    "positive_support": 0,
+                    "known_count": known_count,
+                    "unknown_count": unknown_count,
+                }
+            )
+            continue
+
+        recall_pos = float((p_j[pos_valid] == 1).float().mean().item())
+        mean_prob_pos = float(prob_j[pos_valid].mean().item())
+
+        per_label.append(
+            {
+                "recall_pos": recall_pos,
+                "mean_prob_pos": mean_prob_pos,
+                "positive_support": positive_support,
+                "known_count": known_count,
+                "unknown_count": unknown_count,
+            }
+        )
+
+    return {"per_label": per_label}

@@ -21,12 +21,11 @@ from lx_ai.ai_model_config.config import TrainingConfig
 from lx_ai.ai_model_training.trainer_gastronet_multilabel import (
     train_gastronet_multilabel,
 )
-from lx_ai.utils.logging_utils import section, subsection
-
-
-print("Using database config:", settings.DATABASES)
-print("Data dir:", settings.DATA_DIR)
-print("Frame dir:", settings.FRAME_DIR)
+from lx_ai.utils.logging_utils import section, subsection, kv
+print("\n")
+#print("Using database config:", settings.DATABASES)
+#print("Data dir:", settings.DATA_DIR)
+#print("Frame dir:", settings.FRAME_DIR)
 
 
 def main() -> None:
@@ -38,24 +37,22 @@ def main() -> None:
     section("TRAINING START")
 
     subsection("CONFIG")
-    print(f"  Dataset UUID          : {cfg.dataset_uuid}")
-    print(f"  Data source           : {cfg.data_source}")
-    print(
-        f"  Labelset              : id={cfg.labelset_id}, version={cfg.labelset_version_to_train}"
-    )
-    print(f"  Treat unlabeled as neg: {cfg.treat_unlabeled_as_negative}")
-    print(f"  Model Selected        : {cfg.backbone_name}")
-    print(f"  Device                : {cfg.device}")
-    print(f"  Seed                  : {cfg.random_seed}")
-    print(f"  Epochs                : {cfg.num_epochs}")
-    print(f"  Backbone checkpoint   : {cfg.backbone_checkpoint}")
-    print(f"  Total Buckets         : {cfg.bucket_policy.num_buckets}")
+    kv("Dataset UUID", cfg.dataset_uuid)
+    kv("Data source", cfg.data_source)
+    kv("Labelset", f"id={cfg.labelset_id}, version={cfg.labelset_version_to_train}")
+    kv("Treat unlabeled as neg", cfg.treat_unlabeled_as_negative)
+    kv("Model selected", cfg.backbone_name)
+    kv("Device", cfg.device)
+    kv("Seed", cfg.random_seed)
+    kv("Epochs", cfg.num_epochs)
+    kv("Backbone checkpoint", cfg.backbone_checkpoint)
+    kv("Total buckets", cfg.bucket_policy.num_buckets)
 
     out = train_gastronet_multilabel(cfg)
 
     subsection("ARTIFACTS")
-    print(f"  Model saved to        : {out['model_path']}")
-    print(f"  Metadata saved to     : {out['meta_path']}")
+    kv("Model saved to", out["model_path"])
+    kv("Metadata saved to", out["meta_path"])
 
     section("TRAINING COMPLETE")
 

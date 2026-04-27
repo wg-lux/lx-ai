@@ -40,6 +40,7 @@ from lx_ai.ai_model_matrics.metrics import (
     MetricsResult,
     compute_metrics,
     compute_pos_only_metrics,
+    compute_pos_only_metrics_per_label,
 )
 
 # =============================================================================
@@ -51,7 +52,17 @@ from lx_ai.training.bucket_snapshot import save_bucket_snapshot
 # =============================================================================
 # Project: Logging & Reporting
 # =============================================================================
-from lx_ai.utils.logging_utils import table_header, subsection
+from lx_ai.utils.logging_utils import (
+    section,
+    subsection,
+    decision_section,
+    decision_subsection,
+    table_header,
+    kv,
+    soft_line,
+    success,
+    warning,
+)
 from lx_ai.data_validation import write_data_validation_report
 from lx_ai.data_validation.distribution_report import (
     print_data_validation_report_to_console,
@@ -205,6 +216,291 @@ def groupwise_split_indices_by_examination(
 
     return train_idx, val_idx, test_idx
 
+def _print_dataset_source_summary(
+    dataset_ids_per_frame: List[int],
+    video_ids: List[int],
+    frame_ids: List[int],
+    annotators_per_frame: List[List[Any]],
+) -> None:
+    from collections import defaultdict
+
+    subsection("DATASET SOURCE SUMMARY")
+
+    if not dataset_ids_per_frame or not video_ids:
+        print("  No dataset/video source metadata available.")
+        return
+
+    dataset_to_videos: Dict[int, set[int]] = defaultdict(set)
+    dataset_to_frames: Dict[int, int] = defaultdict(int)
+    dataset_to_annotators: Dict[int, set[str]] = defaultdict(set)
+
+    video_to_datasets: Dict[int, set[int]] = defaultdict(set)
+    video_to_frames: Dict[int, int] = defaultdict(int)
+    video_to_annotators: Dict[int, set[str]] = defaultdict(set)
+
+
+    
+    for ds_id, vid_id, ann_list in zip(dataset_ids_per_frame, video_ids, annotators_per_frame):
+        dataset_to_videos[ds_id].add(vid_id)
+        dataset_to_frames[ds_id] += 1
+        video_to_datasets[vid_id].add(ds_id)
+        video_to_frames[vid_id] += 1
+
+        for ann in ann_list:
+            ann_str = str(ann)
+            dataset_to_annotators[ds_id].add(ann_str)
+            video_to_annotators[vid_id].add(ann_str)
+            
+
+    kv("Total datasets used", len(dataset_to_videos))
+    kv("Total videos used", len(video_to_datasets))
+    kv("Total frames used", len(frame_ids))
+
+    print()
+    subsection("DATASET -> VIDEO DISTRIBUTION")
+    table_header("Dataset", "Video", "Frames")
+
+    for ds_id in sorted(dataset_to_videos.keys()):
+        for vid_id in sorted(dataset_to_videos[ds_id]):
+            print(
+                f"{ds_id:<12} "
+                f"{vid_id:<12} "
+                f"{video_to_frames[vid_id]:<12d}"
+            )
+    
+    print()
+    table_header("Dataset", "Videos", "Frames", "Annotators")
+    for ds_id in sorted(dataset_to_videos.keys()):
+        annotators_str = ", ".join(sorted(dataset_to_annotators[ds_id])) if dataset_to_annotators[ds_id] else "N/A"
+        print(
+            f"{ds_id:<12} "
+            f"{len(dataset_to_videos[ds_id]):<12d} "
+            f"{dataset_to_frames[ds_id]:<12d} "
+            f"{annotators_str}"
+        )
+
+    print()
+    table_header("Video", "Datasets", "Frames", "Annotators")
+    for vid_id in sorted(video_to_datasets.keys()):
+        datasets_str = ", ".join(str(x) for x in sorted(video_to_datasets[vid_id]))
+        annotators_str = ", ".join(sorted(video_to_annotators[vid_id])) if video_to_annotators[vid_id] else "N/A"
+        print(
+            f"{vid_id:<12} "
+            f"{datasets_str:<12} "
+            f"{video_to_frames[vid_id]:<12d} "
+            f"{annotators_str}"
+        )
+def _print_annotation_summary(pos_count: int, neg_count: int) -> None:
+    subsection("ANNOTATIONS")
+    kv("Positives", pos_count)
+    kv("Negatives", neg_count)
+
+
+def _print_split_summary(train_indices: List[int], val_indices: List[int], test_indices: List[int]) -> None:
+    subsection("SPLIT SUMMARY")
+
+    n_total = len(train_indices) + len(val_indices) + len(test_indices)
+
+    def pct(n: int) -> float:
+        return 100.0 * n / n_total if n_total > 0 else 0.0
+
+    table_header("Split", "Samples", "Percentage")
+    print(f"{'Train':<12} {len(train_indices):<10d} {pct(len(train_indices)):>6.1f} %")
+    print(f"{'Validation':<12} {len(val_indices):<10d} {pct(len(val_indices)):>6.1f} %")
+    print(f"{'Test':<12} {len(test_indices):<10d} {pct(len(test_indices)):>6.1f} %")
+    soft_line(width=60)
+    print(f"{'Total':<12} {n_total:<10d} {100.0:>6.1f} %")
+
+def _print_allocation_diagnostics(
+    *,
+    diagnostics: Dict[str, Any],
+    labels_any: Sequence[Any],
+) -> None:
+    subsection("BUCKET ALLOCATION MODE")
+    condition = diagnostics.get("condition", "unknown")
+
+    if condition == "positives_only":
+        kv("Condition", "POSITIVES ONLY")
+        kv("Meaning", "unknown labels are ignored; no known negatives available")
+        kv("Scoring", "positives + frames + dataset spread")
+    elif condition == "partial_with_negatives":
+        kv("Condition", "PARTIAL LABELS WITH TRUE NEGATIVES")
+        kv("Meaning", "unknown labels are ignored; true positives and true negatives are both used")
+        kv("Scoring", "positives + negatives + known support + frames + dataset spread")
+    elif condition == "closed_world":
+        kv("Condition", "CLOSED WORLD")
+        kv("Meaning", "unknown labels are treated as negatives")
+        kv("Scoring", "positives + negatives + frames + dataset spread")
+    else:
+        kv("Condition", condition)
+
+    subsection("VIDEO GROUPING SUMMARY")
+    vg = diagnostics.get("video_grouping", {})
+    kv("Total videos", vg.get("total_videos", 0))
+    kv("Total frames", vg.get("total_frames", 0))
+    kv("Total datasets", vg.get("total_datasets", 0))
+
+    subsection("VIDEO BUCKET REGISTRY SUMMARY")
+    kv("Registry path", diagnostics.get("registry_path", "N/A"))
+    kv("Existing videos", len(diagnostics.get("existing_videos", [])))
+    kv("New videos to assign", len(diagnostics.get("new_videos", [])))
+
+    for entry in diagnostics.get("new_video_decisions", []):
+        decision_section("NEW VIDEO BUCKET DECISION")
+        kv("Video ID", entry["video_id"])
+        kv("Video key", entry["video_key"])
+        kv("Frames", entry["frames"])
+        kv("Datasets", ", ".join(str(x) for x in entry["datasets"]))
+        kv("Mode", entry["condition"])
+
+        decision_subsection("Candidate bucket scores")
+        table_header("Bucket", "Total", "Frames", "Videos", "Pos", "Neg", "Known", "Dataset")
+        for row in entry.get("candidate_breakdowns", []):
+            print(
+                f"{row['bucket_id']:<12}"
+                f"{row['total_score']:<12.6f}"
+                f"{row['frame_score']:<12.6f}"
+                f"{row['video_score']:<12.6f}"
+                f"{row['pos_score']:<12.6f}"
+                f"{row['neg_score']:<12.6f}"
+                f"{row['known_score']:<12.6f}"
+                f"{row['dataset_score']:<12.6f}"
+            )
+
+        '''best = sorted(
+            entry.get("candidate_breakdowns", []),
+            key=lambda x: (x["total_score"], x["bucket_id"]),
+        )[0]
+
+        decision_subsection("Decision")
+        kv("Selected bucket", best["bucket_id"])
+        kv("Winning score", f"{best['total_score']:.6f}")
+        kv("Reason", "Minimum total score after simulating this video in every bucket")
+        soft_line()'''
+        #changed
+        candidate_breakdowns = entry.get("candidate_breakdowns", [])
+
+        if candidate_breakdowns:
+            best = min(
+                candidate_breakdowns,
+                key=lambda x: (x["total_score"], x["bucket_id"]),
+            )
+        
+            decision_subsection("Decision")
+            kv("Selected bucket", best["bucket_id"])
+            kv("Winning score", f"{best['total_score']:.6f}")
+            kv("Reason", "Minimum total score after simulating this video in every bucket")
+        else:
+            decision_subsection("Decision")
+            kv("Selected bucket", "N/A")
+            kv("Winning score", "N/A")
+            kv("Reason", "No candidate bucket scores available in diagnostics")
+        
+        soft_line()
+
+    subsection("FINAL VIDEO -> BUCKET ASSIGNMENTS")
+    table_header("Video", "Bucket", "Frames", "Datasets")
+    for row in diagnostics.get("final_assignments", []):
+        ds_str = ", ".join(str(x) for x in row["datasets"])
+        print(
+            f"{row['video_id']:<12}"
+            f"{row['bucket']:<12}"
+            f"{row['frames']:<12}"
+            f"{ds_str}"
+        )
+
+    subsection("BUCKET BALANCE SUMMARY")
+    table_header("Bucket", "Frames", "Videos")
+    for row in diagnostics.get("bucket_balance", []):
+        print(
+            f"{row['bucket_id']:<12}"
+            f"{row['frames']:<12}"
+            f"{row['videos']:<12}"
+        )
+def _print_dataset_video_label_support(
+    *,
+    dataset_ids_per_frame: List[int],
+    video_ids: List[int],
+    label_vectors: List[List[Optional[int]]],
+    label_masks: List[List[int]],
+    labels_any: Sequence[Any],
+) -> None:
+    from collections import defaultdict
+
+    if (
+        not dataset_ids_per_frame
+        or not video_ids
+        or not label_vectors
+        or not label_masks
+        or not labels_any
+    ):
+        return
+
+    num_labels = len(labels_any)
+
+    dataset_label_pos: Dict[int, List[int]] = defaultdict(lambda: [0] * num_labels)
+    video_label_pos: Dict[tuple[int, int], List[int]] = defaultdict(lambda: [0] * num_labels)
+    dataset_to_videos: Dict[int, set[int]] = defaultdict(set)
+
+    for ds_id, vid_id, vec, mask in zip(
+        dataset_ids_per_frame,
+        video_ids,
+        label_vectors,
+        label_masks,
+    ):
+        dataset_to_videos[ds_id].add(vid_id)
+
+        for j in range(num_labels):
+            is_known = int(mask[j]) == 1
+            is_pos = vec[j] == 1
+
+            if is_known and is_pos:
+                dataset_label_pos[ds_id][j] += 1
+                video_label_pos[(ds_id, vid_id)][j] += 1
+
+    subsection("DATASET LABEL SUPPORT")
+    for ds_id in sorted(dataset_to_videos.keys()):
+        print(f"  Dataset {ds_id}")
+        table_header("LabelIdx", "LabelName", "PosFrames")
+
+        has_any = False
+        for j, lbl in enumerate(labels_any):
+            count = dataset_label_pos[ds_id][j]
+            if count > 0:
+                has_any = True
+                print(
+                    f"{j:<12}"
+                    f"{_label_name(lbl):<20}"
+                    f"{count:<12}"
+                )
+
+        if not has_any:
+            print("  No positive label support found in this dataset.")
+        print("─" * 80)
+
+    subsection("VIDEO LABEL SUPPORT BY DATASET")
+    for ds_id in sorted(dataset_to_videos.keys()):
+        print(f"  Dataset {ds_id}")
+        for vid_id in sorted(dataset_to_videos[ds_id]):
+            print(f"    Video {vid_id}")
+            table_header("LabelIdx", "LabelName", "PosFrames")
+
+            has_any = False
+            counts = video_label_pos[(ds_id, vid_id)]
+            for j, lbl in enumerate(labels_any):
+                count = counts[j]
+                if count > 0:
+                    has_any = True
+                    print(
+                        f"{j:<12}"
+                        f"{_label_name(lbl):<20}"
+                        f"{count:<12}"
+                    )
+
+            if not has_any:
+                print("    No positive label support found in this video.")
+            print("─" * 80)
+
 
 def _tensor_row_as_floats(x: torch.Tensor, max_items: int = 12) -> List[float]:
     """
@@ -233,68 +529,12 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     labelset_any: Any = data["labelset"]
     frame_ids: List[int] = data.get("frame_ids", list(range(len(image_paths))))
     old_exam_ids: List[Optional[int]] = data.get("old_examination_ids", [None] * len(image_paths))
+    dataset_ids_per_frame: List[int] = cast(List[int], data.get("dataset_ids_per_frame", []))
+    video_ids: List[int] = cast(List[int], data.get("video_ids", []))
+    annotators_per_frame: List[List[Any]] = cast(List[List[Any]], data.get("annotators_per_frame", []))
     train_indices = cast(List[int], data["train_indices"])
     val_indices = cast(List[int], data["val_indices"])
     test_indices = cast(List[int], data["test_indices"])
-
-
-    subsection("DATASET SUMMARY")
-    print(f"  Dataset UUID        : {config.dataset_uuid}")
-    print(f"  Samples (frames)    : {len(image_paths)}")
-    print(f"  Labels (raw)        : {len(labels_any)}")
-
-    subsection("BUCKET SPLIT POLICY")
-    print("  Policy:", data.get("bucket_policy"))
-    print("  Bucket sizes:", data.get("bucket_sizes"))
-    print("  Role sizes:", data.get("role_sizes"))
-
-    # ---------------------------------------------------------
-    # BUILD BUCKET SNAPSHOT MAP
-    # ---------------------------------------------------------
-    
-    bucket_map: Dict[str, int] = {}
-    
-    num_buckets = config.bucket_policy.num_buckets
-    
-    for idx, (fid, exam_id) in enumerate(zip(frame_ids, old_exam_ids)):
-        key = build_bucket_key(
-            frame_id=fid,
-            old_examination_id=exam_id
-        )
-        bucket_id = compute_bucket(key, num_buckets)
-        bucket_map[key] = bucket_id
-
-    # ---------------------------------------------------------
-    # OPTIONAL SNAPSHOT SAVE
-    # ---------------------------------------------------------
-    
-    #save_choice = input("\nDo you want to save bucket snapshot? (y/n): ").strip().lower()
-    
-    if config.save_bucket_snapshot:
-    
-        train_bucket_ids = list(
-            set(bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
-                for i in train_indices)
-        )
-    
-        val_bucket_ids = list(
-            set(bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
-                for i in val_indices)
-        )
-    
-        test_bucket_ids = list(
-            set(bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
-                for i in test_indices)
-        )
-    
-        save_bucket_snapshot(
-            bucket_map=bucket_map,
-            train_buckets=train_bucket_ids,
-            val_buckets=val_bucket_ids,
-            test_buckets=test_bucket_ids,
-            dataset_ids=config.dataset_ids,
-            bucket_policy=config.bucket_policy.to_meta(),
-        )
 
     (
         label_vectors,
@@ -309,6 +549,15 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         labelset=labelset_any,
     )
 
+    annotation_positive_count = int(data.get("annotation_positive_count", 0))
+    annotation_negative_count = int(data.get("annotation_negative_count", 0))
+    allocation_diagnostics = cast(Dict[str, Any], data.get("allocation_diagnostics", {}))
+
+    _print_annotation_summary(
+        pos_count=annotation_positive_count,
+        neg_count=annotation_negative_count,
+    )
+
     subsection("LABEL SPACE (AFTER FILTERING)")
     print(f"  Total labels kept: {len(labels_any)}\n")
     
@@ -319,6 +568,122 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         name = _label_name(lbl)
         print(f"{new_idx:<10} {str(lbl_id):<10} {name}")
 
+
+    subsection("DATASET SUMMARY")
+    kv("Dataset UUID", config.dataset_uuid)
+    kv("Samples (frames)", len(image_paths))
+    kv("Labels (filtered)", len(labels_any))
+
+    _print_dataset_source_summary(
+        dataset_ids_per_frame=dataset_ids_per_frame,
+        video_ids=video_ids,
+        frame_ids=frame_ids,
+        annotators_per_frame=annotators_per_frame,
+    )
+
+    _print_dataset_video_label_support(
+        dataset_ids_per_frame=dataset_ids_per_frame,
+        video_ids=video_ids,
+        label_vectors=label_vectors,
+        label_masks=label_masks,
+        labels_any=labels_any,
+    )
+
+    subsection("BUCKET SPLIT POLICY")
+
+    bucket_policy = cast(Dict[str, Any], data.get("bucket_policy", {}))
+    bucket_sizes = cast(Dict[str, int], data.get("bucket_sizes", {}))
+    role_sizes = cast(Dict[str, int], data.get("role_sizes", {}))
+
+    kv("Num buckets", bucket_policy.get("num_buckets", "N/A"))
+    kv("Validation buckets", bucket_policy.get("validation_buckets", []))
+    kv("Test buckets", bucket_policy.get("test_buckets", []))
+    kv("Train buckets", bucket_policy.get("train_buckets", []))
+
+    if bucket_sizes:
+        print()
+        table_header("Bucket", "Frames")
+        for bucket_id in sorted(bucket_sizes.keys(), key=lambda x: int(x)):
+            print(f"{bucket_id:<12} {bucket_sizes[bucket_id]:<12d}")
+
+    if role_sizes:
+        print()
+        table_header("Split", "Frames")
+        for split_name in ("train", "val", "test"):
+            if split_name in role_sizes:
+                print(f"{split_name:<12} {role_sizes[split_name]:<12d}")
+
+    _print_allocation_diagnostics(
+        diagnostics=allocation_diagnostics,
+        labels_any=labels_any,
+    )
+    _print_split_summary(
+        train_indices=train_indices,
+        val_indices=val_indices,
+        test_indices=test_indices,
+    )
+
+    # ---------------------------------------------------------
+    # BUILD BUCKET SNAPSHOT MAP
+    # Prefer allocator-produced bucket_map if present.
+    # Fallback to old frame/exam hashing only for backward compatibility.
+    # ---------------------------------------------------------
+
+    bucket_map = cast(Dict[str, int], data.get("bucket_map", {}))
+    bucket_ids_per_sample = cast(List[int], data.get("bucket_ids_per_sample", []))
+
+    if not bucket_map or not bucket_ids_per_sample:
+        bucket_map = {}
+        num_buckets = config.bucket_policy.num_buckets
+
+        for fid, exam_id in zip(frame_ids, old_exam_ids):
+            key = build_bucket_key(
+                frame_id=fid,
+                old_examination_id=exam_id,
+            )
+            bucket_id = compute_bucket(key, num_buckets)
+            bucket_map[key] = bucket_id
+
+    # ---------------------------------------------------------
+    # OPTIONAL SNAPSHOT SAVE
+    # ---------------------------------------------------------
+    
+    #save_choice = input("\nDo you want to save bucket snapshot? (y/n): ").strip().lower()
+    
+    if config.save_bucket_snapshot:
+    
+        if bucket_ids_per_sample:
+            train_bucket_ids = sorted({bucket_ids_per_sample[i] for i in train_indices})
+            val_bucket_ids = sorted({bucket_ids_per_sample[i] for i in val_indices})
+            test_bucket_ids = sorted({bucket_ids_per_sample[i] for i in test_indices})
+        else:
+            train_bucket_ids = sorted(
+                {
+                    bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
+                    for i in train_indices
+                }
+            )
+            val_bucket_ids = sorted(
+                {
+                    bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
+                    for i in val_indices
+                }
+            )
+            test_bucket_ids = sorted(
+                {
+                    bucket_map[build_bucket_key(frame_ids[i], old_exam_ids[i])]
+                    for i in test_indices
+                }
+            )
+    
+        save_bucket_snapshot(
+            bucket_map=bucket_map,
+            train_buckets=train_bucket_ids,
+            val_buckets=val_bucket_ids,
+            test_buckets=test_bucket_ids,
+            dataset_ids=config.dataset_ids,
+            bucket_policy=config.bucket_policy.to_meta(),
+        )
 
 
     # Apply unlabeled semantics
@@ -401,9 +766,9 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     print_data_validation_report_to_console(report)
 
     subsection("DATA VALIDATION REPORTS")
-    print(f"  JSON report : {json_path}")
-    print(f"  Label CSV   : {label_csv}")
-    print(f"  Exam CSV    : {exam_csv}")
+    kv("JSON report", json_path)
+    kv("Label CSV", label_csv)
+    kv("Exam CSV", exam_csv)
 
     ##
 
@@ -506,7 +871,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     # Class weights
     class_weights = compute_class_weights(full_ds.labels, full_ds.masks).to(device)
     subsection("CLASS WEIGHTS")
-    print("  First 8 weights:", _tensor_row_as_floats(class_weights, max_items=8))
+    kv("First 8 weights", _tensor_row_as_floats(class_weights, max_items=8))
 
 
     # Optimizer + scheduler
@@ -589,6 +954,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         train_loss = train_loss_sum / max(train_batches, 1)
         history["train_loss"].append(train_loss)
 
+
         # Val
         '''if val_loader is None:
 
@@ -636,6 +1002,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
         # -------------------------
         val_metrics = None
         val_pos_metrics = None
+        val_pos_per_label_metrics = None
         
         if val_loader is not None:
             model.eval()
@@ -691,9 +1058,16 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
                     masks=all_val_masks,
                     threshold=0.5,
                 )
+                val_pos_per_label_metrics = compute_pos_only_metrics_per_label(
+                    logits=all_val_logits,
+                    targets=all_val_targets,
+                    masks=all_val_masks,
+                    threshold=0.5,
+                )
                 val_metrics = None
             else:
                 val_pos_metrics = None
+                val_pos_per_label_metrics = None
                 val_metrics = compute_metrics(
                     logits=all_val_logits,
                     targets=all_val_targets,
@@ -706,22 +1080,6 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
             history["val_loss"].append(None)
 
 
-        '''subsection(f"EPOCH {epoch}/{config.num_epochs}")
-        if val_metrics is not None:
-            print(
-                f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
-                f"train_loss={train_loss:.4f} "
-                f"val_loss={val_loss:.4f} "
-                f"val_f1={val_metrics['f1']:.4f} "
-                f"val_acc={val_metrics['accuracy']:.4f}"
-            )
-        else:
-            print(
-                f"[EPOCH {epoch:03d}/{config.num_epochs:03d}] "
-                f"train_loss={train_loss:.4f} "
-                f"(validation disabled)"
-            )'''
-        #
         subsection(f"EPOCH {epoch}/{config.num_epochs}")
         if val_metrics is not None:
             print(
@@ -746,6 +1104,43 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
                 f"train_loss={train_loss:.4f} "
                 f"(validation disabled)"
             )
+
+        if val_metrics is not None:
+            subsection("VAL PER-LABEL METRICS")
+            table_header("Label", "Prec", "Rec", "F1", "Support")
+
+            for j, stats in enumerate(val_metrics["per_label"]):
+                name = _label_name(labels_any[j])
+                p = stats["precision"]
+                r = stats["recall"]
+                f = stats["f1"]
+                sup = stats["support"]
+
+                if p is None:
+                    print(f"{name:20s} {'N/A':>8} {'N/A':>8} {'N/A':>8} {sup:8d}")
+                else:
+                    print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
+
+            print("-" * 60)
+
+        elif val_pos_per_label_metrics is not None:
+            subsection("VAL PER-LABEL METRICS (POSITIVES-ONLY)")
+            table_header("Label", "Recall+", "MeanProb+", "PosSup", "Known", "Unknown")
+
+            for j, stats in enumerate(val_pos_per_label_metrics["per_label"]):
+                name = _label_name(labels_any[j])
+                r = stats["recall_pos"]
+                mp = stats["mean_prob_pos"]
+                ps = stats["positive_support"]
+                kc = stats["known_count"]
+                uc = stats["unknown_count"]
+
+                if r is None or mp is None:
+                    print(f"{name:20s} {'N/A':>8} {'N/A':>10} {ps:8d} {kc:8d} {uc:8d}")
+                else:
+                    print(f"{name:20s} {r:8.4f} {mp:10.4f} {ps:8d} {kc:8d} {uc:8d}")
+
+            print("-" * 80)
 
         #
 
@@ -774,24 +1169,7 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
       
 
         #
-        if val_metrics is not None:
-            subsection("VAL PER-LABEL METRICS")
-            table_header("Label", "Prec", "Rec", "F1", "Support")
-        
-            for j, stats in enumerate(val_metrics["per_label"]):
-                name = _label_name(labels_any[j])
-                p = stats["precision"]
-                r = stats["recall"]
-                f = stats["f1"]
-                sup = stats["support"]
-                if p is None:
-                    print(f"{name:20s} {'N/A':>8} {'N/A':>8} {'N/A':>8} {sup:8d}")
-                else:
-                    print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
-            print("-" * 60)
-        else:
-            # Positives-only or validation disabled: do not print per-label precision/recall/F1 table
-            pass
+    
         #
 
     # ------------------------------------------------------------------
@@ -814,6 +1192,8 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
 # -------------------------
     history["test_loss"] = None
     test_metrics = None
+    test_pos_per_label_metrics = None
+    test_pos_metrics = None
     
     if test_loader is not None:
         model.eval()
@@ -866,8 +1246,15 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
                 masks=all_test_masks,
                 threshold=0.5,
             )
+            test_pos_per_label_metrics = compute_pos_only_metrics_per_label(
+                logits=all_test_logits,
+                targets=all_test_targets,
+                masks=all_test_masks,
+                threshold=0.5,
+            )
         else:
             test_pos_metrics = None
+            test_pos_per_label_metrics = None
             test_metrics = compute_metrics(
                 logits=all_test_logits,
                 targets=all_test_targets,
@@ -905,23 +1292,45 @@ def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
     else:
         print("  Test skipped.")
 
-
     if test_metrics is not None:
         subsection("TEST PER-LABEL METRICS")
         table_header("Label", "Prec", "Rec", "F1", "Support")
-    
+
         for j, stats in enumerate(test_metrics["per_label"]):
             name = _label_name(labels_any[j])
             p = stats["precision"]
             r = stats["recall"]
             f = stats["f1"]
             sup = stats["support"]
+
             if p is None:
                 print(f"{name:20s} {'N/A':>8} {'N/A':>8} {'N/A':>8} {sup:8d}")
             else:
                 print(f"{name:20s} {p:8.4f} {r:8.4f} {f:8.4f} {sup:8d}")
-    
-    print("-" * 60)
+
+        print("-" * 60)
+
+    elif test_pos_per_label_metrics is not None:
+        subsection("TEST PER-LABEL METRICS (POSITIVES-ONLY)")
+        table_header("Label", "Recall+", "MeanProb+", "PosSup", "Known", "Unknown")
+
+        for j, stats in enumerate(test_pos_per_label_metrics["per_label"]):
+            name = _label_name(labels_any[j])
+            r = stats["recall_pos"]
+            mp = stats["mean_prob_pos"]
+            ps = stats["positive_support"]
+            kc = stats["known_count"]
+            uc = stats["unknown_count"]
+
+            if r is None or mp is None:
+                print(f"{name:20s} {'N/A':>8} {'N/A':>10} {ps:8d} {kc:8d} {uc:8d}")
+            else:
+                print(f"{name:20s} {r:8.4f} {mp:10.4f} {ps:8d} {kc:8d} {uc:8d}")
+
+        print("-" * 80)
+
+
+ 
 
     # Save
     runs_dir = Path(config.runs_dir)

@@ -11,14 +11,17 @@ def compute_bucket_id(*, key: str, num_buckets: int) -> int:
     Stable SHA256 hash to bucket_id in [0, num_buckets-1].
     Deterministic across machines and time.
     """
+    if num_buckets <= 0:
+        raise ValueError(f"num_buckets must be >= 1, got {num_buckets}")
+
     digest = hashlib.sha256(key.encode("utf-8")).digest()
     global _DEBUG_PRINT_COUNT
-    
+
     if _DEBUG_PRINT_COUNT < _DEBUG_PRINT_LIMIT:
         print("For Example : \n")
         print(f"Key '{key}' hashed to digest {digest.hex()}")
         _DEBUG_PRINT_COUNT += 1
-    
+
     value = int.from_bytes(digest, "big")
     return value % num_buckets
 

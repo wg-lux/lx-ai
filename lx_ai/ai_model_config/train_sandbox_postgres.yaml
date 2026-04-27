@@ -6,10 +6,10 @@ dataset_uuid: sandbox_ds
 # DATA SOURCE
 # ------------------------------
 data_source: postgres
-dataset_ids: [1] #When new dataset comes:dataset_ids: [1, 2]
+dataset_ids: [1,2] #When new dataset comes:dataset_ids: [1, 2]
 
-labelset_id: 2
-labelset_version_to_train: 2
+labelset_id: 5
+labelset_version_to_train: 3
 
 # EXACT endoreg-db semantics:
 # ===============================
@@ -59,7 +59,7 @@ freeze_backbone: true
 # TRAINING
 # ------------------------------
 num_epochs: 2
-batch_size: 16
+batch_size: 3
 
 #val_split: 0.1
 #test_split: 0.1

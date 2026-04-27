@@ -9,7 +9,7 @@ import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING, TypedDict
+from typing import Any, Dict, Iterable, List, Optional, Sequence, TypedDict
 
 # =============================================================================
 # Third-Party Libraries
@@ -39,8 +39,10 @@ from lx_ai.utils.data_loader_for_model_training import (
 # =============================================================================
 # Project: Splitting & Bucket Logic
 # =============================================================================
-from lx_ai.ai_model_split.bucket_splitter import split_indices_by_bucket_policy
 from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrity
+from lx_ai.ai_model_split.video_bucket_allocator import (
+    assign_buckets_with_persistent_video_registry,
+)
 
 # -----------------------------------------------------------------------------
 # IMPORTANT (Pylance fix):
@@ -51,6 +53,8 @@ from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrit
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 from lx_ai.utils.db_loader_for_model_input import load_annotations
 
+from lx_ai.ai_model_split.split_sanity_checker import verify_split_disjointness
+import sqlite3
 
 """if TYPE_CHECKING:
     from pydantic import BaseModel as _TypedBaseModel
@@ -109,8 +113,16 @@ class ImageMultilabelDatasetDataDict(TypedDict):
     bucket_policy: Dict[str, Any]
     bucket_sizes: Dict[str, int]
     role_sizes: Dict[str, int]
-
-
+    dataset_ids_per_frame: List[int]
+    video_ids: List[int]
+    annotators_per_frame: List[List[Any]]
+    bucket_ids_per_sample: List[int]
+    bucket_map: Dict[str, int]
+    annotation_positive_count : int
+    annotation_negative_count : int
+    allocation_diagnostics: Dict[str, Any]
+    
+    
 def _empty_labelset_info() -> LabelSetInfo:
     # Typed default factory for a TypedDict (Pylance-safe)
     return {}
@@ -357,20 +369,34 @@ def build_dataset_for_training(
             require_existing_files=True,
         )
         ds = ds_model.to_ddict()
-        
-        train_idx, val_idx, test_idx, bucket_ids, bucket_sizes, role_sizes = split_indices_by_bucket_policy(
-            frame_ids=ds["frame_ids"],
-            old_examination_ids=ds["old_examination_ids"],
-            policy=config.bucket_policy,
+        label_names = [
+            str(lbl.get("name", "<unnamed>")) if isinstance(lbl, dict)
+            else str(getattr(lbl, "name", "<unnamed>"))
+            for lbl in ds["labels"]
+        ]
+        assign_res = assign_buckets_with_persistent_video_registry(
+            config=config,
+            video_ids=ds["video_ids"],
+            dataset_ids_per_frame=ds["dataset_ids_per_frame"],
+            label_vectors=ds["label_vectors"],
+            label_masks=ds["label_masks"],
+            label_names=label_names,
         )
+
+        train_idx = assign_res["train_indices"]
+        val_idx = assign_res["val_indices"]
+        test_idx = assign_res["test_indices"]
+        bucket_ids = assign_res["bucket_ids_per_sample"]
+        bucket_sizes = assign_res["bucket_sizes"]
+        role_sizes = assign_res["role_sizes"]
 
         verify_bucket_integrity(
             frame_ids=ds["frame_ids"],
             old_examination_ids=ds["old_examination_ids"],
             bucket_ids=bucket_ids,
+            video_ids=ds["video_ids"],
         )
 
-        from lx_ai.ai_model_split.split_sanity_checker import verify_split_disjointness
 
         verify_split_disjointness(
             train_indices=train_idx,
@@ -384,6 +410,11 @@ def build_dataset_for_training(
         ds["bucket_policy"] = config.bucket_policy.to_meta()
         ds["bucket_sizes"] = bucket_sizes
         ds["role_sizes"] = role_sizes
+        ds["bucket_ids_per_sample"] = bucket_ids
+        ds["bucket_map"] = assign_res["bucket_map"]
+        ds["annotation_positive_count"] = 0
+        ds["annotation_negative_count"] = 0
+        ds["allocation_diagnostics"] = assign_res["diagnostics"]
         
         return ds
 
@@ -399,9 +430,10 @@ def build_dataset_for_training(
             all_annotations.extend(anns)
         
         annotations = all_annotations
-        pos = sum(1 for a in annotations if a.get("value") is True)
-        neg = sum(1 for a in annotations if a.get("value") is False)
-        print(f"[ANNOTATIONS] positives={pos} negatives={neg}")
+        raw_values = [a.get("value") for a in annotations]
+        pos = sum(1 for v in raw_values if v is not None and bool(v))
+        neg = sum(1 for v in raw_values if v is not None and not bool(v))
+        #print(f"[ANNOTATIONS] positives={pos} negatives={neg}")
 
         labelset = load_labelset(
             config=config,
@@ -417,29 +449,62 @@ def build_dataset_for_training(
     )
 
         # NEW: compute immutable split indices once, here (dataset building stage)
-        from lx_ai.ai_model_split.bucket_splitter import split_indices_by_bucket_policy
-        
-        train_idx, val_idx, test_idx, bucket_ids, bucket_sizes, role_sizes = split_indices_by_bucket_policy(
-            frame_ids=ds["frame_ids"],
-            old_examination_ids=ds["old_examination_ids"],
-            policy=config.bucket_policy,
-        )
+        label_names = [
+            str(lbl.get("name", "<unnamed>")) if isinstance(lbl, dict)
+            else str(getattr(lbl, "name", "<unnamed>"))
+            for lbl in ds["labels"]
+        ]
 
-        from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrity
+        assign_res = assign_buckets_with_persistent_video_registry(
+            config=config,
+            video_ids=ds["video_ids"],
+            dataset_ids_per_frame=ds["dataset_ids_per_frame"],
+            label_vectors=ds["label_vectors"],
+            label_masks=ds["label_masks"],
+            label_names=label_names,
+        )
+        
+
+        train_idx = assign_res["train_indices"]
+        val_idx = assign_res["val_indices"]
+        test_idx = assign_res["test_indices"]
+        bucket_ids = assign_res["bucket_ids_per_sample"]
+        bucket_sizes = assign_res["bucket_sizes"]
+        role_sizes = assign_res["role_sizes"]
 
         verify_bucket_integrity(
             frame_ids=ds["frame_ids"],
             old_examination_ids=ds["old_examination_ids"],
             bucket_ids=bucket_ids,
+            video_ids=ds["video_ids"],
         )
 
-        from lx_ai.ai_model_split.split_sanity_checker import verify_split_disjointness
 
         verify_split_disjointness(
             train_indices=train_idx,
             val_indices=val_idx,
             test_indices=test_idx,
         )
+
+        # ---------------------------------------------------------
+        # SPLIT SUMMARY (NEW - DEBUG / VISIBILITY)
+        # ---------------------------------------------------------
+        '''from lx_ai.utils.logging_utils import subsection, table_header
+        
+        subsection("SPLIT SUMMARY")
+        
+        n_total = len(train_idx) + len(val_idx) + len(test_idx)
+        
+        def pct(n: int) -> float:
+            return 100.0 * n / n_total if n_total > 0 else 0.0
+        
+        table_header("Split", "Samples", "Percentage")
+        
+        print(f"{'Train':<12} {len(train_idx):<10d} {pct(len(train_idx)):>6.1f} %")
+        print(f"{'Validation':<12} {len(val_idx):<10d} {pct(len(val_idx)):>6.1f} %")
+        print(f"{'Test':<12} {len(test_idx):<10d} {pct(len(test_idx)):>6.1f} %")
+        print("-" * 60)
+        print(f"{'Total':<12} {n_total:<10d} {100.0:>6.1f} %")'''
         
         ds["train_indices"] = train_idx
         ds["val_indices"] = val_idx
@@ -447,6 +512,11 @@ def build_dataset_for_training(
         ds["bucket_policy"] = config.bucket_policy.to_meta()
         ds["bucket_sizes"] = bucket_sizes
         ds["role_sizes"] = role_sizes
+        ds["bucket_ids_per_sample"] = bucket_ids
+        ds["bucket_map"] = assign_res["bucket_map"]
+        ds["annotation_positive_count"] = pos if config.data_source == "postgres" else 0
+        ds["annotation_negative_count"] = neg if config.data_source == "postgres" else 0
+        ds["allocation_diagnostics"] = assign_res["diagnostics"]
         
         return ds
 
@@ -465,10 +535,6 @@ def load_labelset(config, labelset_id: int, labelset_version: int):
         )
     else:
         raise ValueError(f"Unsupported DB backend: {db_backend}")
-    
-import sqlite3
-from pathlib import Path
-
 
 def load_labelset_from_sqlite(
     labelset_id: int,
