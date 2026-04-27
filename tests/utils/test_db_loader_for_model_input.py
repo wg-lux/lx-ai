@@ -8,6 +8,18 @@ from lx_ai.utils import db_loader_for_model_input as db_loader
 
 
 class TestDbLoaderEnvironment:
+
+
+    def _clean_password_env(self, monkeypatch) -> None:
+        # clears all password env vars so tests do not depend on developer or CI shell
+        for key in (
+            "DEV_DB_PASSWORD",
+            "DJANGO_DB_PASSWORD",
+            "DEV_DB_PASSWORD_FILE",
+            "DJANGO_DB_PASSWORD_FILE",
+        ):
+            monkeypatch.delenv(key, raising=False)
+
     def test_first_env_returns_first_existing_value(self, monkeypatch) -> None:
         # checks first non empty env value is returned
         monkeypatch.setenv("FIRST_TEST_ENV", "abc")
@@ -54,11 +66,11 @@ class TestDbLoaderEnvironment:
         monkeypatch,
     ) -> None:
         # checks password can be loaded from password file
+        self._clean_password_env(monkeypatch)
+
         password_file = tmp_path / "db_pwd"
         password_file.write_text("file-secret\n", encoding="utf-8")
 
-        monkeypatch.delenv("DEV_DB_PASSWORD", raising=False)
-        monkeypatch.delenv("DJANGO_DB_PASSWORD", raising=False)
         monkeypatch.setenv("DJANGO_DB_PASSWORD_FILE", str(password_file))
 
         assert db_loader._get_password() == "file-secret"
@@ -69,8 +81,8 @@ class TestDbLoaderEnvironment:
         monkeypatch,
     ) -> None:
         # checks missing password file raises clear error
-        monkeypatch.delenv("DEV_DB_PASSWORD", raising=False)
-        monkeypatch.delenv("DJANGO_DB_PASSWORD", raising=False)
+        self._clean_password_env(monkeypatch)
+
         monkeypatch.setenv("DJANGO_DB_PASSWORD_FILE", str(tmp_path / "missing"))
 
         with pytest.raises(RuntimeError, match="Password file"):
@@ -78,13 +90,7 @@ class TestDbLoaderEnvironment:
 
     def test_get_password_raises_when_nothing_is_configured(self, monkeypatch) -> None:
         # checks error is raised when no password source exists
-        for key in (
-            "DEV_DB_PASSWORD",
-            "DJANGO_DB_PASSWORD",
-            "DEV_DB_PASSWORD_FILE",
-            "DJANGO_DB_PASSWORD_FILE",
-        ):
-            monkeypatch.delenv(key, raising=False)
+        self._clean_password_env(monkeypatch)
 
         with pytest.raises(RuntimeError, match="No database password found"):
             db_loader._get_password()
@@ -139,6 +145,7 @@ class TestDbLoaderEnvironment:
         assert kwargs["user"] == "service_user"
         assert kwargs["password"] == "service_password"
         assert kwargs["sslmode"] == "prefer"
+
 
     def test_get_db_connection_kwargs_rejects_invalid_port(self, monkeypatch) -> None:
         # checks invalid database port raises clear error
