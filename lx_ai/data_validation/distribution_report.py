@@ -1,6 +1,6 @@
 # lx_ai/data_validation/distribution_report.py
 from __future__ import annotations
-from lx_ai.utils.logging_utils import section, subsection, table_header
+
 import csv
 import json
 from dataclasses import dataclass
@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
 
 import torch
 
+from lx_ai.utils.logging_utils import section, subsection, table_header
 
 # ----------------------------
 # Public output shapes

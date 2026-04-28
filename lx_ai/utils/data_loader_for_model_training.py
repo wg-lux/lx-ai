@@ -1,6 +1,7 @@
 # lx_ai/ai_model_data_loader/data_loader_for_model_training.py
 from __future__ import annotations
 
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import (
@@ -15,13 +16,11 @@ from typing import (
     TypeGuard,
     cast,
 )
-import os
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 from lx_ai.utils.db_loader_for_model_input import load_annotations_from_postgres
-
 # -----------------------------------------------------------------------------
 # Types: dataset kind dispatch (same idea as old AIDataSet constants)
 # -----------------------------------------------------------------------------
@@ -478,26 +477,32 @@ def build_image_multilabel_dataset(
         raw_frame_dir = Path(str(frame_dir))
         rel_path = Path(str(relative_path))
         
+        if not str(frame_dir).strip():
+            raise ValueError(f"Empty frame directory for frame_id={frame_id}")
+        
+        if not str(relative_path).strip():
+            raise ValueError(f"Empty relative_path for frame_id={frame_id}")
+        
         remap_source = os.getenv("FRAME_PATH_REMAP_SOURCE", "").strip()
         remap_target = os.getenv("FRAME_PATH_REMAP_TARGET", "").strip()
         
         if remap_source and remap_target:
-            try:
-                raw_frame_dir_str = str(raw_frame_dir)
-                if raw_frame_dir_str.startswith(remap_source):
-                    raw_frame_dir = Path(
-                        raw_frame_dir_str.replace(remap_source, remap_target, 1)
-                    )
-            except Exception:
-                pass
+            raw_frame_dir_str = str(raw_frame_dir)
+        
+            if raw_frame_dir_str.startswith(remap_source):
+                raw_frame_dir = Path(
+                    raw_frame_dir_str.replace(remap_source, remap_target, 1)
+                )
         
         file_path = (raw_frame_dir / rel_path).expanduser().resolve()
         image_paths.append(file_path)
         
         if not file_path.is_file():
             raise FileNotFoundError(
-                f"Image file not found: {file_path}"
-                f"(frame_dir={frame_dir}, relative_path={relative_path})"
+                f"Image file not found: {file_path}. "
+                f"Original frame_dir={frame_dir}, relative_path={relative_path}. "
+                "If running locally with production frame paths, set "
+                "FRAME_PATH_REMAP_SOURCE and FRAME_PATH_REMAP_TARGET."
             )
         
     

@@ -9,12 +9,12 @@ from typing import Any, Dict, List, Optional, Sequence, TypedDict
 from lx_ai.ai_model_config.config import TrainingConfig
 from lx_ai.ai_model_split.video_bucket_registry import VideoBucketRegistry
 from lx_ai.utils.logging_utils import (
-    subsection,
-    table_header,
     decision_section,
     decision_subsection,
     kv,
     soft_line,
+    subsection,
+    table_header,
 )
 @dataclass(frozen=True)
 class VideoSummary:

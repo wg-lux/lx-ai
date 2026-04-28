@@ -1,17 +1,15 @@
 #lx_ai/ai_model/model_backbones.py
 from __future__ import annotations
 
+from collections.abc import Mapping as AbcMapping
 from pathlib import Path
-from typing import Dict,  Literal, Optional, TypedDict, cast
+from typing import Any, Dict, Literal, Optional, TypeGuard, TypedDict, cast
 
 import torch
 from torch import nn
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
-from collections.abc import Mapping as AbcMapping
-
-from typing import Any, Dict, TypeGuard
 from lx_ai.utils.logging_utils import subsection
 
 # -----------------------------------------------------------------------------
@@ -234,7 +232,13 @@ def _build_resnet50_backbone(
 ) -> BackboneBuildResult:
     base = _load_torchvision_resnet50(imagenet=imagenet)
 
-    if checkpoint is not None and checkpoint.is_file():
+    if checkpoint is not None:
+        if not checkpoint.is_file():
+            raise FileNotFoundError(
+                f"Backbone checkpoint does not exist: {checkpoint}. "
+                "Check BACKBONE_CHECKPOINT or backbone_checkpoint in the training YAML."
+            )
+    
         loaded_obj: object = torch.load(checkpoint, map_location="cpu")
         state_dict = _extract_state_dict(loaded_obj)
 

@@ -1,60 +1,35 @@
 # lx_ai/utils/data_loader_for_model_input.py
 from __future__ import annotations
-import os
 
-# =============================================================================
-# Standard Library
-# =============================================================================
+import os
 import argparse
 import json
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, TypedDict
 
-# =============================================================================
-# Third-Party Libraries
-# =============================================================================
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-# =============================================================================
-# Project: Configuration
-# =============================================================================
 from lx_ai.ai_model_config.config import TrainingConfig
 
-# =============================================================================
-# Project: Data Loading (Database)
-# =============================================================================
 from lx_ai.utils.db_loader_for_model_input import (
+    load_annotations,
     load_annotations_from_postgres,
     load_labelset_from_postgres,
 )
 
-# =============================================================================
-# Project: Dataset Building
-# =============================================================================
 from lx_ai.utils.data_loader_for_model_training import (
     build_image_multilabel_dataset,
 )
 
-# =============================================================================
-# Project: Splitting & Bucket Logic
-# =============================================================================
 from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrity
 from lx_ai.ai_model_split.video_bucket_allocator import (
     assign_buckets_with_persistent_video_registry,
 )
-
-# -----------------------------------------------------------------------------
-# IMPORTANT (Pylance fix):
-# Your AppBaseModel lives in lx_dtypes and Pylance may treat it as "untyped base".
-# We keep runtime using your real AppBaseModel, but for static analysis we provide
-# a typed stand-in so fields like List[LabelInfo] don't become list[Unknown].
-# -----------------------------------------------------------------------------
-from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
-from lx_ai.utils.db_loader_for_model_input import load_annotations
-
 from lx_ai.ai_model_split.split_sanity_checker import verify_split_disjointness
-import sqlite3
+
+from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 
 """if TYPE_CHECKING:
     from pydantic import BaseModel as _TypedBaseModel

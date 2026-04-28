@@ -1,39 +1,24 @@
 # lx_ai/ai_model_training/trainer_gastronet_multilabel.py
 from __future__ import annotations
 
-# =============================================================================
-# Standard Library
-# =============================================================================
 import json
 import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
 
-# =============================================================================
-# Third-Party Libraries
-# =============================================================================
 import numpy as np
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
-# =============================================================================
-# Project: Configuration
-# =============================================================================
 from lx_ai.ai_model_config.config import TrainingConfig
 
-# =============================================================================
-# Project: Dataset & Data Loading
-# =============================================================================
 from lx_ai.ai_model_dataset.dataset import (
     EndoMultiLabelDataset,
     MultiLabelDatasetSpec,
 )
 from lx_ai.utils.data_loader_for_model_input import build_dataset_for_training
 
-# =============================================================================
-# Project: Model & Training
-# =============================================================================
 from lx_ai.ai_model.model_backbones import create_multilabel_model
 from lx_ai.ai_model.losses import compute_class_weights, focal_loss_with_mask
 from lx_ai.ai_model_matrics.metrics import (
@@ -43,24 +28,18 @@ from lx_ai.ai_model_matrics.metrics import (
     compute_pos_only_metrics_per_label,
 )
 
-# =============================================================================
-# Project: Bucketing & Splits
-# =============================================================================
 from lx_ai.training.bucket_logic import build_bucket_key, compute_bucket
 from lx_ai.training.bucket_snapshot import save_bucket_snapshot
 
-# =============================================================================
-# Project: Logging & Reporting
-# =============================================================================
 from lx_ai.utils.logging_utils import (
-    section,
-    subsection,
     decision_section,
     decision_subsection,
-    table_header,
     kv,
+    section,
     soft_line,
+    subsection,
     success,
+    table_header,
     warning,
 )
 from lx_ai.data_validation import write_data_validation_report

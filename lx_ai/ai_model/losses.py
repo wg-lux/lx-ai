@@ -1,13 +1,15 @@
 #lx_ai/ai_model/losses.py
 from __future__ import annotations
 
-from typing import Optional, TypedDict
+from pathlib import Path
+from typing import Literal, Optional, TypedDict, cast
 
 import torch
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
+from torch import nn
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
-from typing import cast
+
 # -----------------------------------------------------------------------------
 # Typed export (“ddict”) – consistent with your TrainingConfig pattern
 # -----------------------------------------------------------------------------

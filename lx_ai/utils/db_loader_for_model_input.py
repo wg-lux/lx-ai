@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import os
+import sqlite3
+from pathlib import Path
 from typing import Optional
 
 import psycopg
-
 
 def _first_env(*names: str, default: Optional[str] = None) -> Optional[str]:
     """
@@ -52,12 +53,12 @@ def _get_password() -> str:
     2. DEV_DB_PASSWORD_FILE / DJANGO_DB_PASSWORD_FILE (if file exists)
     """
 
-    # 1️⃣ direct password (best for local)
+    # direct password (best for local)
     pw = _first_env("DEV_DB_PASSWORD", "DJANGO_DB_PASSWORD")
     if pw:
         return pw
 
-    # 2️⃣ password file (used by service)
+    #  password file (used by service)
     pw_file = _first_env("DEV_DB_PASSWORD_FILE", "DJANGO_DB_PASSWORD_FILE")
     if pw_file:
         if os.path.exists(pw_file):
@@ -70,7 +71,7 @@ def _get_password() -> str:
                 "For service: ensure secretspec creates the file."
             )
 
-    # 3️⃣ nothing found
+    #  nothing found
     raise RuntimeError(
         "No database password found.\n"
         "Set one of:\n"
@@ -114,7 +115,7 @@ def _get_db_connection_kwargs() -> dict:
         "sslmode": sslmode,
     }
 
-
+#It will deals with both databases
 def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
     sql = """
     SELECT
@@ -226,8 +227,6 @@ def load_labelset_from_postgres(
     }
 
 
-import os
-
 def load_annotations(config, dataset_id: int) -> list[dict]:
     db_backend = os.getenv("DB_BACKEND", "postgres")
 
@@ -237,9 +236,6 @@ def load_annotations(config, dataset_id: int) -> list[dict]:
         return load_annotations_from_postgres(dataset_id)
     else:
         raise ValueError(f"Unsupported DB backend: {db_backend}")
-    
-import sqlite3
-from pathlib import Path
 
 
 def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
