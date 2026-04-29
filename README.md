@@ -22,7 +22,6 @@ All in a consistent and validated manner.
 ### Flexible Data Sources
 - **PostgreSQL database** — production/service mode
 - **SQLite** — local development mode
-- **Legacy JSONL + image directory** — offline datasets
 
 ### Robust Dataset Handling
 - Label filtering by labelset version
@@ -36,7 +35,7 @@ All in a consistent and validated manner.
 
 ### Stable and Reproducible Data Splitting
 - Bucket-based splitting with deterministic hashing
-- Grouping by `video_id` or `old_examination_id`
+- Grouping by each video.
 - Persistent video bucket registry to ensure:
   - No data leakage
   - Stable splits across runs
@@ -108,19 +107,6 @@ Data loading, splitting, training, and evaluation are modular and independently 
 ### Production-Aware Design
 The same pipeline works in both local development and service-based production environments.
 
-## Branches and Database Usage
-
-### `sandbox`
-
-Used for sandbox database work and direct PostgreSQL access.
-
-### `prototype`
-
-Used for the service-compatible workflow and local development.
-
-- Service mode: PostgreSQL
-- Local mode: SQLite
-
 ## Quick Start
 
 
@@ -160,24 +146,16 @@ RUNS_DIR=${TRAINING_ROOT}/runs
 BUCKET_SNAPSHOT_DIR=${TRAINING_ROOT}/buckets
 
 # Model checkpoint
-BACKBONE_CHECKPOINT=${CHECKPOINTS_DIR}/RN50_GastroNet-1M_DINOv1.pth
-
+BACKBONE_CHECKPOINT=${CHECKPOINTS_DIR}/{model_weights}
 # Training config-a relative path inside the repository.
 TRAINING_CONFIG_PATH=lx_ai/ai_model_config/train_sandbox_postgres.yaml
-
-# Optional JSONL mode - data_source: jsonl
-LEGACY_IMAGE_DIR=${DATA_DIR}/legacy_images/images
-LEGACY_JSONL_PATH=${DATA_DIR}/legacy_images/legacy_img_dicts.jsonl
 
 # Optional CSV import - used by lx_ai/scripts/import_csv_sqlite.py
 CSV_DIR=${DATA_DIR}/import/csv
 
 # Local SQLite
-SQLITE_DB_PATH=${WORKING_DIR}/dev_db.sqlite
+SQLITE_DB_PATH=${WORKING_DIR}/database
 
-# Frame path remap for local development
-FRAME_PATH_REMAP_SOURCE=/var/endoreg-service-user/lx-annotate/data/frames
-FRAME_PATH_REMAP_TARGET=${WORKING_DIR}/data/frames_mirror
 ```
 
 ### Database variables
@@ -185,10 +163,10 @@ FRAME_PATH_REMAP_TARGET=${WORKING_DIR}/data/frames_mirror
 #### Local development with SQLite
 
 ```bash
-DB_BACKEND=sqlite
-DJANGO_SETTINGS_MODULE=${WORKING_DIR}.settings.settings_dev
-DJANGO_DB_ENGINE=django.db.backends.sqlite3
-SQLITE_DB_PATH=${WORKING_DIR}/dev_db.sqlite
+DB_BACKEND=
+DJANGO_SETTINGS_MODULE=
+DJANGO_DB_ENGINE=
+SQLITE_DB_PATH=
 ```
 
 For SQLite, these PostgreSQL-style values may exist but are not the active DB connection:
@@ -205,13 +183,13 @@ DJANGO_DB_USER=
 These are normally generated in `.env.systemd` by the Luxnix service:
 
 ```bash
-DB_BACKEND=postgres
+DB_BACKEND=
 DJANGO_SETTINGS_MODULE=SQLITE_DB_PATH=${WORKING_DIR}.settings.settings_prod
-DJANGO_DB_ENGINE=django.db.backends.postgresql
+DJANGO_DB_ENGINE=
 DJANGO_DB_HOST=localhost
-DJANGO_DB_PORT=5432
-DJANGO_DB_NAME=<database_name> #e.g endoregDbLocal
-DJANGO_DB_USER=<database_user> #e.g endoregDbLocal
+DJANGO_DB_PORT=
+DJANGO_DB_NAME=<database_name>
+DJANGO_DB_USER=<database_user>
 DJANGO_DB_PASSWORD_FILE=${CONF_DIR}/db_pwd  # e.g /var/endoreg-service-user/lx-ai/conf/db_pwd
 DJANGO_DB_SSLMODE=prefer
 ```
@@ -251,7 +229,7 @@ dataset_ids: [1, 2]
 labelset_id: 5
 labelset_version_to_train: 3
 
-backbone_name: gastro_rn50
+backbone_name:
 backbone_checkpoint: "$BACKBONE_CHECKPOINT"
 
 base_dir: "$DATA_DIR"
@@ -273,15 +251,6 @@ labelset_id: <your_labelset_id>
 labelset_version_to_train: <your_version>
 ```
 
-### Verify your paths
-
-Run the path diagnostics to validate your configuration:
-
-```bash
-secretspec run --provider env -- uv run python -c "from lx_ai.utils.path_diagnostics import print_runtime_path_diagnostics; print_runtime_path_diagnostics()"
-```
-
-
 ### Main entry point
 
 ```bash
@@ -297,7 +266,7 @@ python -m lx_ai.run_training
 ### Recommended development workflow
 
 ```bash
-cd /home/admin/dev/lx-ai
+cd /lx-ai
 devenv shell
 python lx_ai/run_training.py
 ```
@@ -330,7 +299,7 @@ labelset_id: 5
 labelset_version_to_train: 3
 treat_unlabeled_as_negative: false
 backbone_name: gastro_rn50
-backbone_checkpoint: /path/to/RN50_GastroNet-1M_DINOv1.pth
+backbone_checkpoint: /path/to/model_weights.pth
 freeze_backbone: true
 num_epochs: 20
 batch_size: 16
@@ -535,13 +504,13 @@ Check `dataset_ids` and ensure annotations exist for those IDs.
 For local development against service database paths, remap frame roots:
 
 ```bash
-export FRAME_PATH_REMAP_SOURCE="/var/endoreg-service-user/lx-annotate/data/frames"
-export FRAME_PATH_REMAP_TARGET="/home/admin/dev/lx-ai/data/frames_mirror"
+export FRAME_PATH_REMAP_SOURCE=""
+export FRAME_PATH_REMAP_TARGET=""
 ```
 
 ### Missing GastroNet checkpoint
 
-Verify the path for `RN50_GastroNet-1M_DINOv1.pth`.
+Verify the path for `model_weights.pth`.
 
 ### PostgreSQL password errors
 
@@ -675,7 +644,7 @@ labelset_id: 5
 labelset_version_to_train: 3
 treat_unlabeled_as_negative: false
 backbone_name: gastro_rn50
-backbone_checkpoint: /path/to/RN50_GastroNet-1M_DINOv1.pth
+backbone_checkpoint: /path/to/model_weights.pth
 freeze_backbone: true
 num_epochs: 20
 batch_size: 16
@@ -880,13 +849,13 @@ Check `dataset_ids` and ensure annotations exist for those IDs.
 For local development against service database paths, remap frame roots:
 
 ```bash
-export FRAME_PATH_REMAP_SOURCE="/var/endoreg-service-user/lx-annotate/data/frames"
+export FRAME_PATH_REMAP_SOURCE="/"
 export FRAME_PATH_REMAP_TARGET="/home/admin/dev/lx-ai/data/frames_mirror"
 ```
 
 ### Missing GastroNet checkpoint
 
-Verify the path for `RN50_GastroNet-1M_DINOv1.pth`.
+Verify the path for `model_weights.pth`.
 
 ### PostgreSQL password errors
 

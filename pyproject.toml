@@ -1,6 +1,6 @@
 [project]
 name = "lx-ai-module"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
   {name = "Thomas J. Lux", email = "lux_t1@ukw.de"},
 ]
@@ -107,6 +107,7 @@ target-version = ["py312"]
 exclude = [
   "tests",
   "tests/**",
+  "lx_ai/migrations/0001_initial.py",
 ]
 
 [tool.hatch.metadata]
@@ -129,6 +130,7 @@ exclude = [
   "htmlcov/**",
   "storage",
   "storage/**",
+  "lx_ai/migrations/0001_initial.py",
 ]
 
 [tool.uv]
