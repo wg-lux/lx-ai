@@ -8,9 +8,13 @@ def verify_split_disjointness(
     val_indices: list[int],
     test_indices: list[int],
 ) -> None:
-    # section("SPLIT SANITY CHECK", "🧪")
+    # section("SPLIT SANITY CHECK")
 
-    subsection("Split Disjointness Check")
+    subsection("Split Disjointness")
+    print("  Rule    : each sample index belongs to exactly one split")
+    print(
+        f"  Checked : train={len(train_indices)}, val={len(val_indices)}, test={len(test_indices)}"
+    )
 
     train_set = set(train_indices)
     val_set = set(val_indices)
@@ -21,6 +25,8 @@ def verify_split_disjointness(
     overlap_vt = val_set & test_set
 
     if overlap_tv or overlap_tt or overlap_vt:
+        print("  Status  : FAIL")
+        print("  Result  : split overlap detected")
         table_header("Split Pair", "Overlap Count")
 
         if overlap_tv:
@@ -32,4 +38,5 @@ def verify_split_disjointness(
 
         raise RuntimeError("Split overlap detected.")
 
-    print("✔ Splits are mutually exclusive.")
+    print("  Status  : PASS")
+    print("  Result  : train/validation/test are mutually exclusive")

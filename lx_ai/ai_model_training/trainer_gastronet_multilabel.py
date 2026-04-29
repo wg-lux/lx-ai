@@ -37,6 +37,10 @@ from lx_ai.utils.logging_utils import (
     soft_line,
     subsection,
     table_header,
+    _style,
+    _BOLD,
+    _CYAN,
+    _MAGENTA,
 )
 from lx_ai.data_validation import write_data_validation_report
 from lx_ai.data_validation.distribution_report import (
@@ -427,9 +431,23 @@ def _print_dataset_video_label_support(
     num_labels = len(labels_any)
 
     dataset_label_pos: Dict[int, List[int]] = defaultdict(lambda: [0] * num_labels)
+    dataset_label_neg: Dict[int, List[int]] = defaultdict(lambda: [0] * num_labels)
+    dataset_label_known: Dict[int, List[int]] = defaultdict(lambda: [0] * num_labels)
+    dataset_label_unknown: Dict[int, List[int]] = defaultdict(lambda: [0] * num_labels)
+
     video_label_pos: Dict[tuple[int, int], List[int]] = defaultdict(
         lambda: [0] * num_labels
     )
+    video_label_neg: Dict[tuple[int, int], List[int]] = defaultdict(
+        lambda: [0] * num_labels
+    )
+    video_label_known: Dict[tuple[int, int], List[int]] = defaultdict(
+        lambda: [0] * num_labels
+    )
+    video_label_unknown: Dict[tuple[int, int], List[int]] = defaultdict(
+        lambda: [0] * num_labels
+    )
+
     dataset_to_videos: Dict[int, set[int]] = defaultdict(set)
 
     for ds_id, vid_id, vec, mask in zip(
@@ -442,45 +460,75 @@ def _print_dataset_video_label_support(
 
         for j in range(num_labels):
             is_known = int(mask[j]) == 1
-            is_pos = vec[j] == 1
 
-            if is_known and is_pos:
-                dataset_label_pos[ds_id][j] += 1
-                video_label_pos[(ds_id, vid_id)][j] += 1
+            if is_known:
+                dataset_label_known[ds_id][j] += 1
+                video_label_known[(ds_id, vid_id)][j] += 1
+
+                if vec[j] == 1:
+                    dataset_label_pos[ds_id][j] += 1
+                    video_label_pos[(ds_id, vid_id)][j] += 1
+                elif vec[j] == 0:
+                    dataset_label_neg[ds_id][j] += 1
+                    video_label_neg[(ds_id, vid_id)][j] += 1
+            else:
+                dataset_label_unknown[ds_id][j] += 1
+                video_label_unknown[(ds_id, vid_id)][j] += 1
 
     subsection("DATASET LABEL SUPPORT")
     for ds_id in sorted(dataset_to_videos.keys()):
-        print(f"  Dataset {ds_id}")
-        table_header("LabelIdx", "LabelName", "PosFrames")
+        print(_style(f"  Dataset {ds_id}", _BOLD, _MAGENTA))
+        table_header(
+            "LabelIdx", "LabelName", "PosFrames", "NegFrames", "Known", "Unknown"
+        )
 
-        has_any = False
         for j, lbl in enumerate(labels_any):
-            count = dataset_label_pos[ds_id][j]
-            if count > 0:
-                has_any = True
-                print(f"{j:<12}{_label_name(lbl):<20}{count:<12}")
+            pos_count = dataset_label_pos[ds_id][j]
+            neg_count = dataset_label_neg[ds_id][j]
+            known_count = dataset_label_known[ds_id][j]
+            unknown_count = dataset_label_unknown[ds_id][j]
 
-        if not has_any:
-            print("  No positive label support found in this dataset.")
+            print(
+                f"{j:<12}"
+                f"{_label_name(lbl):<20}"
+                f"{pos_count:<12}"
+                f"{neg_count:<12}"
+                f"{known_count:<12}"
+                f"{unknown_count:<12}"
+            )
+
         print("─" * 80)
 
     subsection("VIDEO LABEL SUPPORT BY DATASET")
     for ds_id in sorted(dataset_to_videos.keys()):
-        print(f"  Dataset {ds_id}")
+        print(_style(f"  Dataset {ds_id}", _BOLD, _MAGENTA))
+
         for vid_id in sorted(dataset_to_videos[ds_id]):
-            print(f"    Video {vid_id}")
-            table_header("LabelIdx", "LabelName", "PosFrames")
+            print(_style(f"    Video {vid_id}", _BOLD, _CYAN))
+            table_header(
+                "LabelIdx",
+                "LabelName",
+                "PosFrames",
+                "NegFrames",
+                "Known",
+                "Unknown",
+            )
 
-            has_any = False
-            counts = video_label_pos[(ds_id, vid_id)]
             for j, lbl in enumerate(labels_any):
-                count = counts[j]
-                if count > 0:
-                    has_any = True
-                    print(f"{j:<12}{_label_name(lbl):<20}{count:<12}")
+                pos_count = video_label_pos[(ds_id, vid_id)][j]
+                neg_count = video_label_neg[(ds_id, vid_id)][j]
+                known_count = video_label_known[(ds_id, vid_id)][j]
+                unknown_count = video_label_unknown[(ds_id, vid_id)][j]
 
-            if not has_any:
-                print("    No positive label support found in this video.")
+                print(
+                    f"{j:<12}"
+                    f"{_label_name(lbl):<20}"
+                    f"{pos_count:<12}"
+                    f"{neg_count:<12}"
+                    f"{known_count:<12}"
+                    f"{unknown_count:<12}"
+                )
+
             print("─" * 80)
 
 

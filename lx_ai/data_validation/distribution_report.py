@@ -8,7 +8,13 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict
 
 import torch
 
-from lx_ai.utils.logging_utils import section, subsection, table_header
+from lx_ai.utils.logging_utils import (
+    section,
+    subsection,
+    table_header,
+    _MAGENTA,
+    _style,
+)
 
 
 # ----------------------------
@@ -433,6 +439,15 @@ def print_data_validation_report_to_console(report: DataValidationReport) -> Non
     # SPLIT SIMILARITY
     # ---------------------------------------------------------
     subsection("SPLIT DISTRIBUTION SIMILARITY")
+    print(
+        f"  {_style('Meaning', _MAGENTA):<8} : Jensen–Shannon divergence between label distributions across splits."
+    )
+    print(
+        f"  {_style('Range', _MAGENTA):<8} : 0 = identical distributions, higher = more different."
+    )
+    print(
+        f"  {_style('Rule', _MAGENTA):<8} : <0.05 excellent, <0.1 good, <0.2 moderate, >=0.2 problematic."
+    )
 
     table_header("Metric", "Train-Val", "Train-Test", "Val-Test")
 
