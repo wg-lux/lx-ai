@@ -107,6 +107,22 @@ Data loading, splitting, training, and evaluation are modular and independently 
 ### Production-Aware Design
 The same pipeline works in both local development and service-based production environments.
 
+## Installation & Setup
+
+### 1. Install the package
+```bash
+pip install lx-ai-module
+```
+### 2. Verify installation
+```bash
+import lx_ai
+print("lx_ai imported successfully")
+```
+### 3. Prepare runtime assets
+```bash
+python -m lx_ai.scripts.prepare_runtime_assets
+```
+
 ## Quick Start
 
 
