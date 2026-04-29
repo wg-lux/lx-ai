@@ -99,7 +99,9 @@ def test_label_masks_reject_invalid_value(tmp_path: Path) -> None:
         MultiLabelDatasetSpec.model_validate(data)
 
 
-def test_image_vectors_and_masks_must_have_same_number_of_samples(tmp_path: Path) -> None:
+def test_image_vectors_and_masks_must_have_same_number_of_samples(
+    tmp_path: Path,
+) -> None:
     # checks image_paths, label_vectors and label_masks must align by sample count
     data = _valid_spec_data(tmp_path)
     data["label_vectors"] = [[1, 0, None]]
@@ -199,7 +201,9 @@ def test_torch_dataset_len_matches_number_of_images(tmp_path: Path) -> None:
     assert len(ds) == 2
 
 
-def test_torch_dataset_converts_none_labels_to_zero_with_mask_zero(tmp_path: Path) -> None:
+def test_torch_dataset_converts_none_labels_to_zero_with_mask_zero(
+    tmp_path: Path,
+) -> None:
     # checks None labels become 0 in tensor but mask stays 0
     spec = MultiLabelDatasetSpec.model_validate(_valid_spec_data(tmp_path))
     ds = EndoMultiLabelDataset(spec)

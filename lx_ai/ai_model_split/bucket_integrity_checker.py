@@ -23,7 +23,9 @@ def verify_bucket_integrity(
     """
 
     if not (len(frame_ids) == len(old_examination_ids) == len(bucket_ids)):
-        raise ValueError("frame_ids, old_examination_ids, bucket_ids must have same length")
+        raise ValueError(
+            "frame_ids, old_examination_ids, bucket_ids must have same length"
+        )
 
     if video_ids is not None and len(video_ids) != len(bucket_ids):
         raise ValueError("video_ids must align with bucket_ids")

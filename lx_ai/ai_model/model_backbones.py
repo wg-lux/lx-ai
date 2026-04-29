@@ -1,4 +1,4 @@
-#lx_ai/ai_model/model_backbones.py
+# lx_ai/ai_model/model_backbones.py
 from __future__ import annotations
 
 from collections.abc import Mapping as AbcMapping
@@ -71,7 +71,9 @@ class MultiLabelModelFactorySpec(AppBaseModel):
         return self.ddict(
             backbone_name=self.backbone_name,
             num_labels=self.num_labels,
-            backbone_checkpoint=str(self.backbone_checkpoint) if self.backbone_checkpoint else None,
+            backbone_checkpoint=str(self.backbone_checkpoint)
+            if self.backbone_checkpoint
+            else None,
             freeze_backbone=self.freeze_backbone,
         )
 
@@ -94,8 +96,8 @@ class MultiLabelBackboneHead(nn.Module):
         num_labels: int,
         freeze_backbone: bool = True,
     ) -> None:
-        super().__init__() ## pyright: ignore[reportUnknownMemberType] 
-        # TODO pyright issue: torch is installed but pyright cannot find its types so have to resolve and remove the error ignore 
+        super().__init__()  ## pyright: ignore[reportUnknownMemberType]
+        # TODO pyright issue: torch is installed but pyright cannot find its types so have to resolve and remove the error ignore
         self.backbone: nn.Module = backbone
         self.classifier: nn.Linear = nn.Linear(in_features, num_labels)
 
@@ -187,7 +189,6 @@ def _extract_state_dict(obj: Any) -> Dict[str, torch.Tensor]:
     return cleaned
 
 
-
 def _load_torchvision_resnet50(*, imagenet: bool) -> nn.Module:
     _require_torchvision()
     import torchvision.models as tvm  # type: ignore[import-not-found]
@@ -238,7 +239,7 @@ def _build_resnet50_backbone(
                 f"Backbone checkpoint does not exist: {checkpoint}. "
                 "Check BACKBONE_CHECKPOINT or backbone_checkpoint in the training YAML."
             )
-    
+
         loaded_obj: object = torch.load(checkpoint, map_location="cpu")
         state_dict = _extract_state_dict(loaded_obj)
 
@@ -247,12 +248,15 @@ def _build_resnet50_backbone(
         missing = list(getattr(incompatible, "missing_keys", []))
         unexpected = list(getattr(incompatible, "unexpected_keys", []))
 
+        if unexpected:
+            print(f"  Unexpected keys ignored: {len(unexpected)}")
+            print(f"    Examples: {unexpected[:5]}")
+
         subsection("BACKBONE INITIALIZATION")
         print(f"  Checkpoint loaded   : {checkpoint}")
         if missing:
             print(f"  Missing keys ignored: {len(missing)}")
             print(f"    Examples: {missing[:5]}")
-
 
     # Feature extractor: remove final fc
     backbone = nn.Sequential(*list(base.children())[:-1])  # [B, 2048, 1, 1]
@@ -311,7 +315,9 @@ def create_multilabel_model(
     )
 
     if spec.backbone_name == "gastro_rn50":
-        res = _build_resnet50_backbone(imagenet=False, checkpoint=spec.backbone_checkpoint)
+        res = _build_resnet50_backbone(
+            imagenet=False, checkpoint=spec.backbone_checkpoint
+        )
     elif spec.backbone_name == "resnet50_imagenet":
         res = _build_resnet50_backbone(imagenet=True, checkpoint=None)
     elif spec.backbone_name == "resnet50_random":

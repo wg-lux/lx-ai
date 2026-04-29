@@ -1,14 +1,13 @@
-#lx_ai/ai_model/losses.py
+# lx_ai/ai_model/losses.py
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Literal, Optional, TypedDict, cast
+from typing import Optional, TypedDict
 
 import torch
-from pydantic import ConfigDict, Field, field_validator, model_validator
-from torch import nn
+from pydantic import ConfigDict, Field, field_validator
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
+
 
 # -----------------------------------------------------------------------------
 # Typed export (“ddict”) – consistent with your TrainingConfig pattern
@@ -53,10 +52,10 @@ class FocalLossConfig(AppBaseModel):
             raise ValueError("eps is too large; use values like 1e-6 or 1e-8.")
         return v
 
-    @property #i think we can delete this now
+    @property  # i think we can delete this now
     def ddict(self) -> type[LossConfigDataDict]:
         return LossConfigDataDict
-    
+
     def to_ddict(self) -> LossConfigDataDict:
         d = self.model_dump()
         return {
@@ -72,10 +71,14 @@ class FocalLossConfig(AppBaseModel):
 # -----------------------------------------------------------------------------
 def _require_2d(name: str, x: torch.Tensor) -> None:
     if x.ndim != 2:
-        raise ValueError(f"{name} must be 2D [N,C] or [B,C]. Got shape={tuple(x.shape)}")
+        raise ValueError(
+            f"{name} must be 2D [N,C] or [B,C]. Got shape={tuple(x.shape)}"
+        )
 
 
-def _require_same_shape(a_name: str, a: torch.Tensor, b_name: str, b: torch.Tensor) -> None:
+def _require_same_shape(
+    a_name: str, a: torch.Tensor, b_name: str, b: torch.Tensor
+) -> None:
     if a.shape != b.shape:
         raise ValueError(
             f"{b_name} must match {a_name} shape. {a_name}={tuple(a.shape)}, {b_name}={tuple(b.shape)}"
@@ -89,7 +92,9 @@ def _require_non_empty(name: str, x: torch.Tensor) -> None:
 
 def _require_class_weights(weights: torch.Tensor, num_labels: int) -> None:
     if weights.ndim != 1:
-        raise ValueError(f"class_weights must be 1D [C]. Got shape={tuple(weights.shape)}")
+        raise ValueError(
+            f"class_weights must be 1D [C]. Got shape={tuple(weights.shape)}"
+        )
     if int(weights.shape[0]) != int(num_labels):
         raise ValueError(
             f"class_weights length must match C. Got len={int(weights.shape[0])}, C={int(num_labels)}"
@@ -137,7 +142,7 @@ def focal_loss_with_mask(
     class_weights: Optional[torch.Tensor] = None,
     alpha: float = 0.25,
     gamma: float = 2.0,
-    eps: float = 1e-6
+    eps: float = 1e-6,
 ) -> torch.Tensor:
     """
     Multi-label focal loss with:
@@ -167,7 +172,9 @@ def focal_loss_with_mask(
     # p_t: prob if y=1, (1-prob) if y=0
     pt: torch.Tensor = prob * targets + (1.0 - prob) * (1.0 - targets)
 
-    alpha_factor: torch.Tensor = cfg.alpha * targets + (1.0 - cfg.alpha) * (1.0 - targets)
+    alpha_factor: torch.Tensor = cfg.alpha * targets + (1.0 - cfg.alpha) * (
+        1.0 - targets
+    )
     focal_factor: torch.Tensor = (1.0 - pt) ** cfg.gamma
 
     loss: torch.Tensor = -alpha_factor * focal_factor * torch.log(pt)  # [B, C]

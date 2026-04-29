@@ -5,7 +5,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import ClassVar, Literal, Optional, List, TypedDict, cast
 
-from pydantic import AwareDatetime, ConfigDict, Field, field_serializer, field_validator, model_validator
+from pydantic import (
+    AwareDatetime,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 from lx_ai.ai_model_split.bucket_splitter import BucketSplitPolicy
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
@@ -41,7 +48,9 @@ def _find_repo_root_from_lx_ai(path: Path) -> Path:
     """
     path = path.resolve()
 
-    for parent in [path] + list(path.parents): #Python wants both operands to be lists when using +
+    for parent in [path] + list(
+        path.parents
+    ):  # Python wants both operands to be lists when using +
         if parent.name == "lx_ai":
             return parent.parent.resolve()
 
@@ -118,7 +127,6 @@ class TrainingConfig(AppBaseModel):
         description="UUID of the AIDataSet definition to train on (lx_dtypes model).",
     )
 
-
     # -------------------------------------------------------------------------
     # Data source selection
     # -------------------------------------------------------------------------
@@ -126,23 +134,22 @@ class TrainingConfig(AppBaseModel):
         default="jsonl",
         description="Where training data comes from.",
     )
-    
+
     # Used ONLY when data_source == 'postgres'
-    '''dataset_id: int | None = Field(
+    """dataset_id: int | None = Field(
         default=None,
         description="AIDataSet.id in PostgreSQL (required for postgres mode).",
-    )'''
+    )"""
 
     dataset_ids: List[int] | None = Field(
         default=None,
         description="List of AIDataSet.id values in PostgreSQL (required for postgres mode).",
-   )
+    )
 
-    
     # Used ONLY when data_source == 'jsonl'
     jsonl_path: Path | None = Field(
         default=None,
-    description="Path to legacy JSONL file (used in jsonl mode).",
+        description="Path to legacy JSONL file (used in jsonl mode).",
     )
 
     labelset_id: int | None = None
@@ -187,7 +194,7 @@ class TrainingConfig(AppBaseModel):
     )
 
     create_dirs: bool = Field(
-        default=True, 
+        default=True,
         description="If True, create training_root/checkpoints_dir/runs_dir on validation.",
     )
 
@@ -204,7 +211,6 @@ class TrainingConfig(AppBaseModel):
         description="Optional path to pretrained checkpoint (.pth).",
     )
 
-
     freeze_backbone: bool = Field(
         default=True,
         description="If True, backbone is frozen (head-only training).",
@@ -216,8 +222,8 @@ class TrainingConfig(AppBaseModel):
     num_epochs: int = Field(default=35, ge=1)
     batch_size: int = Field(default=32, ge=1)
 
-    #val_split: float = Field(default=0.2, ge=0.0, le=1.0)
-    #test_split: float = Field(default=0.1, ge=0.0, le=1.0)
+    # val_split: float = Field(default=0.2, ge=0.0, le=1.0)
+    # test_split: float = Field(default=0.1, ge=0.0, le=1.0)
 
     lr_head: float = Field(default=1e-3, gt=0)
     lr_backbone: float = Field(default=1e-4, gt=0)
@@ -238,18 +244,16 @@ class TrainingConfig(AppBaseModel):
     # Stable bucket split policy (hash-based, immutable roles)
     # -------------------------------------------------------------------------
     save_bucket_snapshot: bool = Field(
-    default=False,
-    description="If True, save bucket snapshot for this run."
-)
+        default=False, description="If True, save bucket snapshot for this run."
+    )
     # -------------------------------------------------------------------------
     # Meta field: useful for run metadata dumping (NOT created_at from base)
     # -------------------------------------------------------------------------
     updated_at: AwareDatetime = Field(default_factory=_now_utc)
 
     save_bucket_snapshot: bool = Field(
-    default=False,
-    description="If True, save bucket snapshot for this run."
-)
+        default=False, description="If True, save bucket snapshot for this run."
+    )
 
     # -------------------------------------------------------------------------
     # Serializer: ISO string for JSON metadata
@@ -268,22 +272,30 @@ class TrainingConfig(AppBaseModel):
     def to_ddict(self) -> TrainingConfigDataDict:
         # AppBaseModel.model_dump() already excludes source_file + created_at
         # but we also want to ensure Path fields are rendered as strings.
-        #data = self.model_dump()
+        # data = self.model_dump()
         data = self.model_dump(mode="json")
 
         # In case json encoders don’t stringify Paths in your environment,
         # enforce conversion here (extra safe + stable meta dumps).
-        for k in ("base_dir", "training_root", "checkpoints_dir", "runs_dir", "backbone_checkpoint"):
+        for k in (
+            "base_dir",
+            "training_root",
+            "checkpoints_dir",
+            "runs_dir",
+            "backbone_checkpoint",
+        ):
             if k in data and data[k] is not None:
                 data[k] = str(data[k])
-
 
         return cast(TrainingConfigDataDict, data)
 
     # -------------------------------------------------------------------------
     # Validators: coerce strings → Path (YAML will usually supply strings)
     # -------------------------------------------------------------------------
-    @field_validator("base_dir", "training_root", "checkpoints_dir", "runs_dir", mode="before")
+
+    @field_validator(
+        "base_dir", "training_root", "checkpoints_dir", "runs_dir", mode="before"
+    )
     @classmethod
     def _coerce_to_path(cls, v: object) -> Path | None:
         if v is None or v == "":
@@ -291,9 +303,9 @@ class TrainingConfig(AppBaseModel):
         if isinstance(v, Path):
             return v.expanduser()
         if isinstance(v, str):
-            return Path(v).expanduser()
+            return Path(os.path.expandvars(v)).expanduser()
         raise TypeError("Expected Path | str | None")
-    
+
     """ for paths we commented this
     @classmethod
     def _coerce_checkpoint_to_path(cls, v: object) -> Path | None:
@@ -318,6 +330,7 @@ class TrainingConfig(AppBaseModel):
             v = os.path.expandvars(v)
             return Path(v).expanduser()
         raise TypeError("backbone_checkpoint must be a Path, str, or None")
+
     # -------------------------------------------------------------------------
     # Cross-field invariants & computed defaults (the “brain”)
     # -------------------------------------------------------------------------
@@ -362,34 +375,36 @@ class TrainingConfig(AppBaseModel):
                 d.mkdir(parents=True, exist_ok=True)
 
         # 5) Validate split ratios (must leave room for training set)
-        #if self.val_split + self.test_split >= 1.0:
+        # if self.val_split + self.test_split >= 1.0:
         #    raise ValueError("val_split + test_split must be < 1.0")
 
         # 6) Validate checkpoint if provided
         if self.backbone_checkpoint is not None:
             ckpt = self.backbone_checkpoint.expanduser().resolve()
             if not ckpt.is_file():
-                raise ValueError(f"backbone_checkpoint does not exist or is not a file: {ckpt}")
+                raise ValueError(
+                    f"backbone_checkpoint does not exist or is not a file: {ckpt}"
+                )
             self.backbone_checkpoint = ckpt
 
         # Update updated_at whenever config is validated (nice for traceability)
         self.updated_at = _now_utc()
         return self
-    
+
     @model_validator(mode="after")
     def _validate_data_source(self) -> "TrainingConfig":
         if self.data_source == "postgres":
             if not self.dataset_ids:
-                raise ValueError("dataset_ids must be provided when data_source='postgres'")
+                raise ValueError(
+                    "dataset_ids must be provided when data_source='postgres'"
+                )
         if self.data_source == "jsonl":
             if self.jsonl_path is None:
                 raise ValueError("jsonl_path must be set when data_source='jsonl'")
         return self
 
-    
     @model_validator(mode="after")
     def _validate_labelset(self):
         if self.data_source == "postgres" and self.labelset_id is None:
             raise ValueError("labelset_id must be provided for postgres data source")
         return self
-    

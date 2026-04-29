@@ -18,9 +18,9 @@ import django
 
 django.setup()
 
-from lx_ai.ai_model_config.config import TrainingConfig
-from lx_ai.utils.logging_utils import kv, section, subsection
-from lx_ai.utils.path_diagnostics import (
+from lx_ai.ai_model_config.config import TrainingConfig  # noqa: E402
+from lx_ai.utils.logging_utils import kv, section, subsection  # noqa: E402
+from lx_ai.utils.path_diagnostics import (  # noqa: E402
     print_runtime_path_diagnostics,
     validate_runtime_paths_for_training,
 )
@@ -63,6 +63,7 @@ def main(train_fn: TrainFunction | None = None) -> None:
 
     section("TRAINING START")
 
+    # TODO: consider logging more
     subsection("CONFIG")
     kv("Dataset UUID", cfg.dataset_uuid)
     kv("Data source", cfg.data_source)

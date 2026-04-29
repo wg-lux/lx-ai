@@ -918,7 +918,7 @@ and
 pytest --cov=lx_ai --cov-report=html
 
 # then open
-firefox htmlcov/index.html 
+firefox htmlcov/index.html
 ```
 
 Run a single file:

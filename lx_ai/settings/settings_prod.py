@@ -1,4 +1,4 @@
-from .settings_base import *
+from .settings_base import *  # noqa: F403,F401
 from lx_ai.settings.config import load_config
 
 config = load_config()

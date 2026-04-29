@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import argparse
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -15,7 +14,6 @@ from lx_ai.ai_model_config.config import TrainingConfig
 
 from lx_ai.utils.db_loader_for_model_input import (
     load_annotations,
-    load_annotations_from_postgres,
     load_labelset_from_postgres,
 )
 
@@ -43,8 +41,8 @@ else:
 # -----------------------------------------------------------------------------
 # Defaults you gave (can be overridden from CLI or function arguments)
 # -----------------------------------------------------------------------------
-#DEFAULT_IMAGE_DIR = Path("/home/admin/dev/legacy_images/images")
-#DEFAULT_JSONL_PATH = Path("/home/admin/dev/legacy_images/legacy_img_dicts.jsonl")
+# DEFAULT_IMAGE_DIR = Path("/home/admin/dev/legacy_images/images")
+# DEFAULT_JSONL_PATH = Path("/home/admin/dev/legacy_images/legacy_img_dicts.jsonl")
 
 DEFAULT_IMAGE_DIR = Path(
     os.getenv("LEGACY_IMAGE_DIR", "data/legacy_images/images")
@@ -101,11 +99,11 @@ class ImageMultilabelDatasetDataDict(TypedDict):
     annotators_per_frame: List[List[Any]]
     bucket_ids_per_sample: List[int]
     bucket_map: Dict[str, int]
-    annotation_positive_count : int
-    annotation_negative_count : int
+    annotation_positive_count: int
+    annotation_negative_count: int
     allocation_diagnostics: Dict[str, Any]
-    
-    
+
+
 def _empty_labelset_info() -> LabelSetInfo:
     # Typed default factory for a TypedDict (Pylance-safe)
     return {}
@@ -122,7 +120,9 @@ class LegacyJsonlRecord(AppBaseModel):
       {"labels": ["appendix","polyp"], "old_examination_id": 25, "old_id": 479228, "filename": "479228.jpg"}
     """
 
-    model_config = getattr(AppBaseModel, "model_config", ConfigDict()) | ConfigDict(extra="forbid")
+    model_config = getattr(AppBaseModel, "model_config", ConfigDict()) | ConfigDict(
+        extra="forbid"
+    )
 
     labels: List[str] = Field(default_factory=list)
     old_examination_id: Optional[int] = None
@@ -150,15 +150,16 @@ class ImageMultilabelDataset(AppBaseModel):
       - but to_ddict returns List[str] for trainer compatibility.
     """
 
-    model_config = getattr(AppBaseModel, "model_config", ConfigDict()) | ConfigDict(extra="forbid")
+    model_config = getattr(AppBaseModel, "model_config", ConfigDict()) | ConfigDict(
+        extra="forbid"
+    )
 
     image_paths: List[Path] = Field(..., min_length=1)
     label_vectors: List[List[Optional[int]]] = Field(..., min_length=1)
     label_masks: List[List[int]] = Field(..., min_length=1)
 
     # ✅ Pylance-safe now (LabelInfo is known + base model is typed for checking)
-    labels:List[LabelInfo] = Field(default_factory=list)
-
+    labels: List[LabelInfo] = Field(default_factory=list)
 
     # ✅ TypedDict needs typed default_factory
     labelset: LabelSetInfo = Field(default_factory=_empty_labelset_info)
@@ -188,9 +189,13 @@ class ImageMultilabelDataset(AppBaseModel):
 
         for i, (vec, mask) in enumerate(zip(self.label_vectors, self.label_masks)):
             if len(vec) != c:
-                raise ValueError(f"label_vectors[{i}] length mismatch: expected {c}, got {len(vec)}")
+                raise ValueError(
+                    f"label_vectors[{i}] length mismatch: expected {c}, got {len(vec)}"
+                )
             if len(mask) != c:
-                raise ValueError(f"label_masks[{i}] length mismatch: expected {c}, got {len(mask)}")
+                raise ValueError(
+                    f"label_masks[{i}] length mismatch: expected {c}, got {len(mask)}"
+                )
 
             for j, m in enumerate(mask):
                 if m not in (0, 1):
@@ -200,7 +205,9 @@ class ImageMultilabelDataset(AppBaseModel):
                 if x is None:
                     continue
                 if x not in (0, 1):
-                    raise ValueError(f"label_vectors[{i}][{j}] must be 0|1|None, got {x!r}")
+                    raise ValueError(
+                        f"label_vectors[{i}][{j}] must be 0|1|None, got {x!r}"
+                    )
 
         return self
 
@@ -229,7 +236,9 @@ def _read_jsonl(path: Path) -> Iterable[LegacyJsonlRecord]:
             try:
                 obj = json.loads(s)
             except json.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON on line {line_no} in {str(path)}: {e}") from e
+                raise ValueError(
+                    f"Invalid JSON on line {line_no} in {str(path)}: {e}"
+                ) from e
             yield LegacyJsonlRecord.model_validate(obj)
 
 
@@ -254,7 +263,9 @@ def _build_from_legacy_jsonl(
     jsonl_path = jsonl_path.expanduser().resolve()
 
     label_to_idx: Dict[str, int] = {name: i for i, name in enumerate(labels_in_order)}
-    labels_info: List[LabelInfo] = [{"id": i, "name": name} for i, name in enumerate(labels_in_order)]
+    labels_info: List[LabelInfo] = [
+        {"id": i, "name": name} for i, name in enumerate(labels_in_order)
+    ]
 
     # Minimal labelset metadata (trainer/debug-friendly)
     labelset_info: LabelSetInfo = {
@@ -353,7 +364,8 @@ def build_dataset_for_training(
         )
         ds = ds_model.to_ddict()
         label_names = [
-            str(lbl.get("name", "<unnamed>")) if isinstance(lbl, dict)
+            str(lbl.get("name", "<unnamed>"))
+            if isinstance(lbl, dict)
             else str(getattr(lbl, "name", "<unnamed>"))
             for lbl in ds["labels"]
         ]
@@ -380,13 +392,12 @@ def build_dataset_for_training(
             video_ids=ds["video_ids"],
         )
 
-
         verify_split_disjointness(
             train_indices=train_idx,
             val_indices=val_idx,
             test_indices=test_idx,
-       )   
-       
+        )
+
         ds["train_indices"] = train_idx
         ds["val_indices"] = val_idx
         ds["test_indices"] = test_idx
@@ -398,42 +409,42 @@ def build_dataset_for_training(
         ds["annotation_positive_count"] = 0
         ds["annotation_negative_count"] = 0
         ds["allocation_diagnostics"] = assign_res["diagnostics"]
-        
-        return ds
 
+        return ds
 
     if config.data_source == "postgres":
         all_annotations = []
-        '''annotations = load_annotations_from_postgres(
+        """annotations = load_annotations_from_postgres(
             dataset_id=config.dataset_id
-        )'''
+        )"""
         for ds_id in config.dataset_ids:
-            #anns = load_annotations_from_postgres(dataset_id=ds_id)
+            # anns = load_annotations_from_postgres(dataset_id=ds_id)
             anns = load_annotations(config=config, dataset_id=ds_id)
             all_annotations.extend(anns)
-        
+
         annotations = all_annotations
         raw_values = [a.get("value") for a in annotations]
         pos = sum(1 for v in raw_values if v is not None and bool(v))
         neg = sum(1 for v in raw_values if v is not None and not bool(v))
-        #print(f"[ANNOTATIONS] positives={pos} negatives={neg}")
+        # print(f"[ANNOTATIONS] positives={pos} negatives={neg}")
 
         labelset = load_labelset(
             config=config,
             labelset_id=config.labelset_id,
             labelset_version=config.labelset_version_to_train,
         )
-        
+
         ds = build_image_multilabel_dataset(
-        dataset_uuid=config.dataset_uuid,
-        annotations=annotations,
-        labelset=labelset,
-        treat_unlabeled_as_negative=config.treat_unlabeled_as_negative,
-    )
+            dataset_uuid=config.dataset_uuid,
+            annotations=annotations,
+            labelset=labelset,
+            treat_unlabeled_as_negative=config.treat_unlabeled_as_negative,
+        )
 
         # NEW: compute immutable split indices once, here (dataset building stage)
         label_names = [
-            str(lbl.get("name", "<unnamed>")) if isinstance(lbl, dict)
+            str(lbl.get("name", "<unnamed>"))
+            if isinstance(lbl, dict)
             else str(getattr(lbl, "name", "<unnamed>"))
             for lbl in ds["labels"]
         ]
@@ -446,7 +457,6 @@ def build_dataset_for_training(
             label_masks=ds["label_masks"],
             label_names=label_names,
         )
-        
 
         train_idx = assign_res["train_indices"]
         val_idx = assign_res["val_indices"]
@@ -462,7 +472,6 @@ def build_dataset_for_training(
             video_ids=ds["video_ids"],
         )
 
-
         verify_split_disjointness(
             train_indices=train_idx,
             val_indices=val_idx,
@@ -472,23 +481,23 @@ def build_dataset_for_training(
         # ---------------------------------------------------------
         # SPLIT SUMMARY (NEW - DEBUG / VISIBILITY)
         # ---------------------------------------------------------
-        '''from lx_ai.utils.logging_utils import subsection, table_header
-        
+        """from lx_ai.utils.logging_utils import subsection, table_header
+
         subsection("SPLIT SUMMARY")
-        
+
         n_total = len(train_idx) + len(val_idx) + len(test_idx)
-        
+
         def pct(n: int) -> float:
             return 100.0 * n / n_total if n_total > 0 else 0.0
-        
+
         table_header("Split", "Samples", "Percentage")
-        
+
         print(f"{'Train':<12} {len(train_idx):<10d} {pct(len(train_idx)):>6.1f} %")
         print(f"{'Validation':<12} {len(val_idx):<10d} {pct(len(val_idx)):>6.1f} %")
         print(f"{'Test':<12} {len(test_idx):<10d} {pct(len(test_idx)):>6.1f} %")
         print("-" * 60)
-        print(f"{'Total':<12} {n_total:<10d} {100.0:>6.1f} %")'''
-        
+        print(f"{'Total':<12} {n_total:<10d} {100.0:>6.1f} %")"""
+
         ds["train_indices"] = train_idx
         ds["val_indices"] = val_idx
         ds["test_indices"] = test_idx
@@ -500,11 +509,11 @@ def build_dataset_for_training(
         ds["annotation_positive_count"] = pos if config.data_source == "postgres" else 0
         ds["annotation_negative_count"] = neg if config.data_source == "postgres" else 0
         ds["allocation_diagnostics"] = assign_res["diagnostics"]
-        
+
         return ds
 
-
     raise ValueError(f"Unknown data_source={config.data_source!r}")
+
 
 def load_labelset(config, labelset_id: int, labelset_version: int):
     db_backend = os.getenv("DB_BACKEND", "postgres")
@@ -519,6 +528,7 @@ def load_labelset(config, labelset_id: int, labelset_version: int):
     else:
         raise ValueError(f"Unsupported DB backend: {db_backend}")
 
+
 def load_labelset_from_sqlite(
     labelset_id: int,
     labelset_version: int,
@@ -528,7 +538,7 @@ def load_labelset_from_sqlite(
 
     Same logic as PostgreSQL version.
     """
-     
+
     db_path = Path(os.getenv("SQLITE_DB_PATH", "dev_db.sqlite")).expanduser()
 
     if not db_path.exists():

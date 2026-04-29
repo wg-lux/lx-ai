@@ -1,32 +1,24 @@
 import os
 from pathlib import Path
 from lx_ai.settings.config import load_config
-from pathlib import Path
-import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-dev-only-change-me"
-)
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-dev-only-change-me")
 
 DEBUG = False
 ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     "lx_ai",
-
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     # required for endoreg DB models
     "endoreg_db",
-
     # useful tools
     "django_extensions",
     "rest_framework",
@@ -76,12 +68,12 @@ BASE_DIR = REPO_ROOT
 _settings_module = os.getenv("DJANGO_SETTINGS_MODULE", "")
 _is_dev_settings = _settings_module.endswith("settings_dev")
 
-'''if not _is_dev_settings:
+"""if not _is_dev_settings:
     _env_path = BASE_DIR / ".env.systemd"
 else:
     _env_path = BASE_DIR / ".env"
 
-config = load_config(env_file=_env_path if _env_path.exists() else None)'''
+config = load_config(env_file=_env_path if _env_path.exists() else None)"""
 config = load_config()
 
 DEBUG = config.debug

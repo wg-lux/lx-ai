@@ -14,7 +14,9 @@ def _set_test_bucket_snapshot_dir(tmp_path: Path, monkeypatch) -> Path:
 
 
 class TestBucketSnapshot:
-    def test_create_run_folder_creates_directory(self, tmp_path: Path, monkeypatch) -> None:
+    def test_create_run_folder_creates_directory(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
         # checks create_run_folder creates a timestamped directory in BUCKET_SNAPSHOT_DIR
         bucket_dir = _set_test_bucket_snapshot_dir(tmp_path, monkeypatch)
 
@@ -109,9 +111,7 @@ class TestBucketSnapshot:
         val = json.loads(
             (run_path / "validation_buckets.json").read_text(encoding="utf-8")
         )
-        test = json.loads(
-            (run_path / "test_buckets.json").read_text(encoding="utf-8")
-        )
+        test = json.loads((run_path / "test_buckets.json").read_text(encoding="utf-8"))
 
         assert train == [0, 1, 2]
         assert val == [3]

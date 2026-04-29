@@ -8,6 +8,7 @@ from typing import Optional
 
 import psycopg
 
+
 def _first_env(*names: str, default: Optional[str] = None) -> Optional[str]:
     """
     Return the first non-empty environment variable value from names.
@@ -44,6 +45,8 @@ def _first_env(*names: str, default: Optional[str] = None) -> Optional[str]:
         "DEV_DB_PASSWORD, DJANGO_DB_PASSWORD, "
         "DEV_DB_PASSWORD_FILE, or DJANGO_DB_PASSWORD_FILE."
     )'''
+
+
 def _get_password() -> str:
     """
     Resolve DB password safely for both local and service.
@@ -81,6 +84,7 @@ def _get_password() -> str:
         "- DJANGO_DB_PASSWORD_FILE"
     )
 
+
 def _get_db_connection_kwargs() -> dict:
     """
     Resolve connection settings with local-first, service-compatible fallback.
@@ -115,7 +119,8 @@ def _get_db_connection_kwargs() -> dict:
         "sslmode": sslmode,
     }
 
-#It will deals with both databases
+
+# It will deals with both databases
 def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
     sql = """
     SELECT

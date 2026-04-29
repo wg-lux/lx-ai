@@ -1,1 +1,3 @@
-from .distribution_report import write_data_validation_report
+from .distribution_report import (
+    write_data_validation_report as write_data_validation_report,
+)

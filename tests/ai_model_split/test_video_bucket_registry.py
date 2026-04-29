@@ -47,7 +47,9 @@ def test_video_bucket_registry_rejects_negative_bucket_id(tmp_path: Path) -> Non
         reg.set("video:100", -1)
 
 
-def test_video_bucket_registry_rejects_bucket_id_equal_to_num_buckets(tmp_path: Path) -> None:
+def test_video_bucket_registry_rejects_bucket_id_equal_to_num_buckets(
+    tmp_path: Path,
+) -> None:
     # checks bucket id must be smaller than num_buckets
     path = tmp_path / "video_bucket_registry.json"
     reg = VideoBucketRegistry.load(path=path, num_buckets=5)
@@ -56,7 +58,9 @@ def test_video_bucket_registry_rejects_bucket_id_equal_to_num_buckets(tmp_path: 
         reg.set("video:100", 5)
 
 
-def test_video_bucket_registry_to_dict_returns_sorted_plain_dict(tmp_path: Path) -> None:
+def test_video_bucket_registry_to_dict_returns_sorted_plain_dict(
+    tmp_path: Path,
+) -> None:
     # checks to_dict returns stable sorted json safe structure
     path = tmp_path / "video_bucket_registry.json"
     reg = VideoBucketRegistry.load(path=path, num_buckets=5)
@@ -158,7 +162,9 @@ def test_video_bucket_registry_loads_missing_version_as_one(tmp_path: Path) -> N
     assert reg.get("video:100") == 1
 
 
-def test_video_bucket_registry_load_casts_video_keys_and_bucket_values(tmp_path: Path) -> None:
+def test_video_bucket_registry_load_casts_video_keys_and_bucket_values(
+    tmp_path: Path,
+) -> None:
     # checks loaded video keys become strings and bucket ids become ints
     path = tmp_path / "video_bucket_registry.json"
     path.write_text(

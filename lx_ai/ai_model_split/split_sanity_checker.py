@@ -1,6 +1,6 @@
 # lx_ai/ai_model_split/split_sanity_checker.py
 
-from lx_ai.utils.logging_utils import section, subsection, table_header
+from lx_ai.utils.logging_utils import subsection, table_header
 
 
 def verify_split_disjointness(
@@ -8,7 +8,7 @@ def verify_split_disjointness(
     val_indices: list[int],
     test_indices: list[int],
 ) -> None:
-    #section("SPLIT SANITY CHECK", "🧪")
+    # section("SPLIT SANITY CHECK", "🧪")
 
     subsection("Split Disjointness Check")
 

@@ -39,7 +39,9 @@ def _require_2d(name: str, x: torch.Tensor) -> None:
         raise ValueError(f"{name} must be 2D [N,C]. Got shape={tuple(x.shape)}")
 
 
-def _require_same_shape(a_name: str, a: torch.Tensor, b_name: str, b: torch.Tensor) -> None:
+def _require_same_shape(
+    a_name: str, a: torch.Tensor, b_name: str, b: torch.Tensor
+) -> None:
     if a.shape != b.shape:
         raise ValueError(
             f"{b_name} must match {a_name} shape. "
@@ -100,7 +102,7 @@ def compute_metrics(
     tn: int = int(((1 - preds_i) * (1 - targets_i)).sum().item())
 
 """
-        # ---- only evaluate where mask == 1 (TRUE ignore semantics) ----
+    # ---- only evaluate where mask == 1 (TRUE ignore semantics) ----
     valid: torch.Tensor = masks_i == 1
 
     # Flatten valid entries (micro metrics over all valid label positions)
@@ -112,7 +114,6 @@ def compute_metrics(
     fp: int = int(((p_all == 1) & (t_all == 0)).sum().item())
     fn: int = int(((p_all == 0) & (t_all == 1)).sum().item())
     tn: int = int(((p_all == 0) & (t_all == 0)).sum().item())
-
 
     precision: float = float(tp / (tp + fp + _EPS))
     recall: float = float(tp / (tp + fn + _EPS))
@@ -132,7 +133,9 @@ def compute_metrics(
         valid_count: int = int(valid_idx.sum().item())
 
         if valid_count == 0:
-            per_label.append({"precision": None, "recall": None, "f1": None, "support": 0})
+            per_label.append(
+                {"precision": None, "recall": None, "f1": None, "support": 0}
+            )
             continue
 
         t_j = t_j[valid_idx]
@@ -144,14 +147,21 @@ def compute_metrics(
 
         precision_j: float = float(tp_j / (tp_j + fp_j + _EPS))
         recall_j: float = float(tp_j / (tp_j + fn_j + _EPS))
-        f1_j: float = float(2 * precision_j * recall_j / (precision_j + recall_j + _EPS))
+        f1_j: float = float(
+            2 * precision_j * recall_j / (precision_j + recall_j + _EPS)
+        )
 
         # same meaning as old code:
         # support = number of positives among valid targets for that label
         support: int = int(t_j.sum().item())
 
         per_label.append(
-            {"precision": precision_j, "recall": recall_j, "f1": f1_j, "support": support}
+            {
+                "precision": precision_j,
+                "recall": recall_j,
+                "f1": f1_j,
+                "support": support,
+            }
         )
 
     return {
@@ -166,10 +176,12 @@ def compute_metrics(
         "per_label": per_label,
     }
 
+
 class PosOnlyMetrics(TypedDict):
-    recall_pos: float           # fraction of known positives predicted positive
-    mean_prob_pos: float        # mean sigmoid prob on known positives
-    num_pos: int                # number of known positives evaluated
+    recall_pos: float  # fraction of known positives predicted positive
+    mean_prob_pos: float  # mean sigmoid prob on known positives
+    num_pos: int  # number of known positives evaluated
+
 
 class PosOnlyPerLabelMetrics(TypedDict):
     recall_pos: Optional[float]
@@ -177,6 +189,8 @@ class PosOnlyPerLabelMetrics(TypedDict):
     positive_support: int
     known_count: int
     unknown_count: int
+
+
 class PosOnlyPerLabelResult(TypedDict):
     per_label: List[PosOnlyPerLabelMetrics]
 
@@ -212,7 +226,12 @@ def compute_pos_only_metrics(
     recall_pos = float((preds[pos_valid] == 1).float().mean().item())
     mean_prob_pos = float(probs[pos_valid].mean().item())
 
-    return {"recall_pos": recall_pos, "mean_prob_pos": mean_prob_pos, "num_pos": num_pos}
+    return {
+        "recall_pos": recall_pos,
+        "mean_prob_pos": mean_prob_pos,
+        "num_pos": num_pos,
+    }
+
 
 def compute_pos_only_metrics_per_label(
     logits: torch.Tensor,

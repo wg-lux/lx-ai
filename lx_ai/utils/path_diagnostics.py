@@ -2,9 +2,17 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
-from lx_ai.utils.logging_utils import kv, section, subsection, table_header, error,success, warning
+from lx_ai.utils.logging_utils import (
+    kv,
+    section,
+    subsection,
+    table_header,
+    error,
+    success,
+    warning,
+)
 from django.conf import settings
 from django.db import connection
 
@@ -105,7 +113,6 @@ def print_runtime_path_diagnostics() -> None:
     kv("Django DB vendor", connection.vendor)
     kv("Django DB engine", db_cfg.get("ENGINE"))
     kv("Django DB name/path", db_cfg.get("NAME"))
-
 
 
 class RuntimePathValidationError(RuntimeError):
@@ -264,7 +271,9 @@ def validate_runtime_paths_for_training(config: Any) -> None:
         try:
             path.mkdir(parents=True, exist_ok=True)
         except Exception as exc:
-            missing_required.append((name, str(path), f"{reason}; cannot create: {exc}"))
+            missing_required.append(
+                (name, str(path), f"{reason}; cannot create: {exc}")
+            )
 
     optional_paths: list[tuple[str, Path | None, str]] = [
         ("CSV_DIR", _env_path("CSV_DIR"), "only required for CSV import"),

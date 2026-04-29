@@ -20,12 +20,13 @@ from typing import (
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
-from lx_ai.utils.db_loader_for_model_input import load_annotations_from_postgres
+
 # -----------------------------------------------------------------------------
 # Types: dataset kind dispatch (same idea as old AIDataSet constants)
 # -----------------------------------------------------------------------------
 DatasetType = Literal["image"]
 AIModelType = Literal["image_multilabel_classification"]
+
 
 # -----------------------------------------------------------------------------
 # Minimal dict-shapes for “future DB models”
@@ -47,8 +48,8 @@ class LabelSetDict(TypedDict, total=False):
 class LabelDict(TypedDict, total=False):
     id: int
     name: str
-    label_sets: List[LabelSetDict]          # optional metadata for inference
-    labelset_versions: List[int]            # optional metadata for inference
+    label_sets: List[LabelSetDict]  # optional metadata for inference
+    labelset_versions: List[int]  # optional metadata for inference
 
 
 class AnnotationDict(TypedDict, total=False):
@@ -123,7 +124,9 @@ class ImageMultilabelDataset(AppBaseModel):
             elif isinstance(item, str):
                 out.append(Path(item).expanduser())
             else:
-                raise TypeError(f"image_paths items must be str|Path, got {type(item)!r}")
+                raise TypeError(
+                    f"image_paths items must be str|Path, got {type(item)!r}"
+                )
         return out
 
     @model_validator(mode="after")
@@ -141,7 +144,7 @@ class ImageMultilabelDataset(AppBaseModel):
                 "frame_ids and old_examination_ids must align with samples. "
                 f"Got image_paths={n}, frame_ids={len(self.frame_ids)}, old_examination_ids={len(self.old_examination_ids)}"
             )
-        
+
         if len(self.dataset_ids_per_frame) != n:
             raise ValueError(
                 f"dataset_ids_per_frame must align with samples. "
@@ -166,9 +169,13 @@ class ImageMultilabelDataset(AppBaseModel):
 
         for i, (vec, mask) in enumerate(zip(self.label_vectors, self.label_masks)):
             if len(vec) != c:
-                raise ValueError(f"label_vectors[{i}] length mismatch: expected {c}, got {len(vec)}")
+                raise ValueError(
+                    f"label_vectors[{i}] length mismatch: expected {c}, got {len(vec)}"
+                )
             if len(mask) != c:
-                raise ValueError(f"label_masks[{i}] length mismatch: expected {c}, got {len(mask)}")
+                raise ValueError(
+                    f"label_masks[{i}] length mismatch: expected {c}, got {len(mask)}"
+                )
 
             for j, m in enumerate(mask):
                 if m not in (0, 1):
@@ -178,7 +185,9 @@ class ImageMultilabelDataset(AppBaseModel):
                 if x is None:
                     continue
                 if x not in (0, 1):
-                    raise ValueError(f"label_vectors[{i}][{j}] must be 0|1|None, got {x!r}")
+                    raise ValueError(
+                        f"label_vectors[{i}][{j}] must be 0|1|None, got {x!r}"
+                    )
 
         return self
 
@@ -266,7 +275,7 @@ def _infer_labelset_from_annotations(annotations: Sequence[Any]) -> LabelSetDict
         label_sets_raw = _get(lbl, "label_sets", None)
         if not isinstance(label_sets_raw, list) or not label_sets_raw:
             raise ValueError(
-                f"Cannot infer LabelSet: label '{_get(lbl,'name','<unnamed>')}' has no label_sets metadata. "
+                f"Cannot infer LabelSet: label '{_get(lbl, 'name', '<unnamed>')}' has no label_sets metadata. "
                 "Provide labelset explicitly."
             )
 
@@ -278,7 +287,7 @@ def _infer_labelset_from_annotations(annotations: Sequence[Any]) -> LabelSetDict
 
         if not ids:
             raise ValueError(
-                f"Cannot infer LabelSet: label '{_get(lbl,'name','<unnamed>')}' has label_sets but no ids. "
+                f"Cannot infer LabelSet: label '{_get(lbl, 'name', '<unnamed>')}' has label_sets but no ids. "
                 "Provide labelset explicitly."
             )
 
@@ -290,16 +299,22 @@ def _infer_labelset_from_annotations(annotations: Sequence[Any]) -> LabelSetDict
         common.intersection_update(s)
 
     if not common:
-        raise ValueError("No common LabelSet across all labels. Provide labelset explicitly.")
+        raise ValueError(
+            "No common LabelSet across all labels. Provide labelset explicitly."
+        )
     if len(common) > 1:
-        raise ValueError(f"More than one common LabelSet found: {sorted(common)}. Provide labelset explicitly.")
+        raise ValueError(
+            f"More than one common LabelSet found: {sorted(common)}. Provide labelset explicitly."
+        )
 
     only_id = next(iter(common))
     # IMPORTANT: do NOT set name/version to None; omit keys instead (TypedDict safe)
     return {"id": only_id}
 
 
-def _labels_in_order_from_labelset(labelset: Any, annotations: Sequence[Any]) -> List[Any]:
+def _labels_in_order_from_labelset(
+    labelset: Any, annotations: Sequence[Any]
+) -> List[Any]:
     """
     Determine ordered label list (column order).
 
@@ -336,7 +351,7 @@ def build_image_multilabel_dataset(
     dataset_uuid: str,
     annotations: Sequence[Any],
     labelset: Optional[Any] = None,
-    treat_unlabeled_as_negative:bool=True,
+    treat_unlabeled_as_negative: bool = True,
 ) -> ImageMultilabelDatasetDataDict:
     """
     Build an in-memory multilabel dataset for image classification.
@@ -361,7 +376,7 @@ def build_image_multilabel_dataset(
         labelset = _infer_labelset_from_annotations(annotations)
 
     labels_in_order: List[Any] = _labels_in_order_from_labelset(labelset, annotations)
-        # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # FILTER LABELS BY labelset.version (MATCH endoreg-db BEHAVIOR)
     # ------------------------------------------------------------------
     labelset_version = _get(labelset, "version", None)
@@ -374,27 +389,25 @@ def build_image_multilabel_dataset(
     num_labels = len(labels_in_order)
     if num_labels == 0:
         raise ValueError("LabelSet has no labels (num_labels == 0).")
-    
+
         # ------------------------------------------------------------
     # DROP LABELS WITH ZERO POSITIVE SAMPLES (MATCH endoreg-db)
     # ------------------------------------------------------------
     label_pos_counts: Dict[int, int] = defaultdict(int)
-    
+
     for ann in annotations:
         if bool(_get(ann, "value", False)):
             lbl = _get(ann, "label", None)
             if lbl is not None:
                 label_pos_counts[_label_key(lbl)] += 1
-    
+
     labels_in_order = [
-        lbl for lbl in labels_in_order
-        if label_pos_counts.get(_label_key(lbl), 0) > 0
+        lbl for lbl in labels_in_order if label_pos_counts.get(_label_key(lbl), 0) > 0
     ]
-    
+
     num_labels = len(labels_in_order)
     if num_labels == 0:
         raise ValueError("No labels with positive samples remain after filtering.")
-
 
     # Build label -> column index mapping
     label_index: Dict[int, int] = {}
@@ -410,7 +423,7 @@ def build_image_multilabel_dataset(
     for ann in annotations:
         lbl = _get(ann, "label", None)
         if lbl is not None:
-           labels_seen.add(_label_key(lbl))  
+            labels_seen.add(_label_key(lbl))
         frame = _get(ann, "frame", None)
         frame_id_any = _get(frame, "id", None)
         if not isinstance(frame_id_any, int):
@@ -444,59 +457,60 @@ def build_image_multilabel_dataset(
             frame_by_id[frame_id] = frame
 
         frame_ids.append(frame_id)
-        old_examination_ids.append(cast(Optional[int], _get(frame, "old_examination_id", None)))
+        old_examination_ids.append(
+            cast(Optional[int], _get(frame, "old_examination_id", None))
+        )
 
-        '''file_path_raw = _require(frame, "file_path")
+        """file_path_raw = _require(frame, "file_path")
         file_path = Path(str(file_path_raw)).expanduser().resolve()
-        image_paths.append(file_path)'''
-        
+        image_paths.append(file_path)"""
 
         # As currenlty, dataset has restricted frame_dir, which is not accessible as a local user for this service user is required, for verification we commented
-        # liine 456 to 470 and in place of this added new logic that change sthe path to /home/admin/dev/lx-ai/data/frames_mirror/<hash>/frame_x.jpg and generated placeholder image at 
+        # liine 456 to 470 and in place of this added new logic that change sthe path to /home/admin/dev/lx-ai/data/frames_mirror/<hash>/frame_x.jpg and generated placeholder image at
         # lx_ai/scripts/materialize_missing_frames_remap.py, to set this before running script run export restricted path and then local path like export FRAME_PATH_REMAP_TARGET="/home/admin/dev/lx-ai/data/frames_mirror".
         # How to go back to the real paths: Just unset the variables: unset FRAME_PATH_REMAP_SOURCE and unset FRAME_PATH_REMAP_TARGET
-        '''frame_dir = _require(frame, "file_path")
+        """frame_dir = _require(frame, "file_path")
         relative_path = _require(frame, "relative_path")
 
         file_path = (
             Path(str(frame_dir))
                  / Path(str(relative_path))
             )
-        
+
         file_path = file_path.expanduser().resolve()
         image_paths.append(file_path)
 
 
         if not file_path.is_file():
             raise FileNotFoundError(f"Image file not found: {file_path}"
-                                    f"(frame_dir={frame_dir}, relative_path={relative_path})")'''
-        
+                                    f"(frame_dir={frame_dir}, relative_path={relative_path})")"""
+
         frame_dir = _require(frame, "file_path")
         relative_path = _require(frame, "relative_path")
-        
+
         raw_frame_dir = Path(str(frame_dir))
         rel_path = Path(str(relative_path))
-        
+
         if not str(frame_dir).strip():
             raise ValueError(f"Empty frame directory for frame_id={frame_id}")
-        
+
         if not str(relative_path).strip():
             raise ValueError(f"Empty relative_path for frame_id={frame_id}")
-        
+
         remap_source = os.getenv("FRAME_PATH_REMAP_SOURCE", "").strip()
         remap_target = os.getenv("FRAME_PATH_REMAP_TARGET", "").strip()
-        
+
         if remap_source and remap_target:
             raw_frame_dir_str = str(raw_frame_dir)
-        
+
             if raw_frame_dir_str.startswith(remap_source):
                 raw_frame_dir = Path(
                     raw_frame_dir_str.replace(remap_source, remap_target, 1)
                 )
-        
+
         file_path = (raw_frame_dir / rel_path).expanduser().resolve()
         image_paths.append(file_path)
-        
+
         if not file_path.is_file():
             raise FileNotFoundError(
                 f"Image file not found: {file_path}. "
@@ -504,27 +518,25 @@ def build_image_multilabel_dataset(
                 "If running locally with production frame paths, set "
                 "FRAME_PATH_REMAP_SOURCE and FRAME_PATH_REMAP_TARGET."
             )
-        
-    
 
         vec: List[Optional[int]] = [None] * num_labels
 
         # Initialize as UNKNOWN (same as endoreg-db)
         vec: List[Optional[int]] = [None] * num_labels
-        
+
         # Fill from annotations on THIS frame
         for ann in frame_annotations:
             lbl = _get(ann, "label", None)
             if lbl is None:
                 continue
-        
+
             idx = label_index.get(_label_key(lbl))
             if idx is None:
                 continue
-        
+
             value = bool(_require(ann, "value"))
             vec[idx] = 1 if value else 0
-        
+
         dataset_id_raw = _get(frame_annotations[0], "dataset_id", None)
         if not isinstance(dataset_id_raw, int):
             raise ValueError(f"Missing or invalid dataset_id for frame_id={frame_id}")
@@ -552,7 +564,6 @@ def build_image_multilabel_dataset(
 
         mask = [1 if v is not None else 0 for v in vec]
 
-        
         for ann in frame_annotations:
             lbl = _get(ann, "label", None)
             if lbl is None:
@@ -567,15 +578,13 @@ def build_image_multilabel_dataset(
             value = bool(value_raw)
             vec[idx] = 1 if value else 0
 
-
         mask: List[int] = [0 if v is None else 1 for v in vec]
-
 
         label_vectors.append(vec)
         label_masks.append(mask)
 
     ds = ImageMultilabelDataset(
-        image_paths=image_paths,                 # Paths -> validated and type-safe
+        image_paths=image_paths,  # Paths -> validated and type-safe
         label_vectors=label_vectors,
         label_masks=label_masks,
         labels=labels_in_order,

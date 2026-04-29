@@ -13,6 +13,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 
+
 # -----------------------------------------------------------------------------
 # 1) Pydantic "spec" model: validate all dataset inputs BEFORE torch sees them
 # -----------------------------------------------------------------------------
@@ -96,7 +97,6 @@ class MultiLabelDatasetSpec(AppBaseModel):
                 if x not in (0, 1):
                     raise ValueError(f"label_masks[{i}][{j}] must be 0|1, got {x!r}")
         return v
-
 
     # ----------------------------
     # Cross-field invariants

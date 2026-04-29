@@ -33,7 +33,9 @@ def _make_config(
     )
 
 
-def _prepare_common_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path]:
+def _prepare_common_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, Path]:
     # creates the common required local directories and files
     data_dir = tmp_path / "data"
     conf_dir = tmp_path / "conf"

@@ -16,6 +16,8 @@ from lx_ai.utils.logging_utils import (
     subsection,
     table_header,
 )
+
+
 @dataclass(frozen=True)
 class VideoSummary:
     video_key: str
@@ -39,6 +41,7 @@ class PersistentBucketAssignmentResult(TypedDict):
     bucket_map: Dict[str, int]
     diagnostics: Dict[str, Any]
 
+
 class CandidateScoreBreakdown(TypedDict):
     bucket_id: int
     total_score: float
@@ -48,6 +51,7 @@ class CandidateScoreBreakdown(TypedDict):
     neg_score: float
     known_score: float
     dataset_score: float
+
 
 @dataclass
 class BucketStats:
@@ -170,7 +174,9 @@ def _add_video_to_bucket_stats(stats: BucketStats, video: VideoSummary) -> None:
         stats.known_counts[j] += int(video.known_counts[j])
 
     for ds_id, cnt in video.dataset_frame_counts.items():
-        stats.dataset_frame_counts[ds_id] = stats.dataset_frame_counts.get(ds_id, 0) + int(cnt)
+        stats.dataset_frame_counts[ds_id] = stats.dataset_frame_counts.get(
+            ds_id, 0
+        ) + int(cnt)
 
 
 def _copy_stats(stats: BucketStats) -> BucketStats:
@@ -182,6 +188,7 @@ def _copy_stats(stats: BucketStats) -> BucketStats:
         known_counts=list(stats.known_counts),
         dataset_frame_counts=dict(stats.dataset_frame_counts),
     )
+
 
 def _print_video_grouping_summary(
     *,
@@ -228,7 +235,11 @@ def _print_video_grouping_summary(
         print(f"  Video {v.video_id} ({v.video_key})")
         table_header("LabelIdx", "LabelName", "Pos", "Neg", "Known", "Unknown")
         for j in range(num_labels):
-            label_name = label_names[j] if label_names is not None and j < len(label_names) else f"label_{j}"
+            label_name = (
+                label_names[j]
+                if label_names is not None and j < len(label_names)
+                else f"label_{j}"
+            )
             print(
                 f"{j:<12}"
                 f"{label_name:<20}"
@@ -248,8 +259,12 @@ def _print_allocator_condition(condition: str) -> None:
         print("  Scoring   : positives + negatives + frames + dataset spread")
     elif condition == "partial_with_negatives":
         print("  Condition : PARTIAL LABELS WITH TRUE NEGATIVES")
-        print("  Meaning   : unknown labels are ignored; true positives and true negatives are both used")
-        print("  Scoring   : positives + negatives + known support + frames + dataset spread")
+        print(
+            "  Meaning   : unknown labels are ignored; true positives and true negatives are both used"
+        )
+        print(
+            "  Scoring   : positives + negatives + known support + frames + dataset spread"
+        )
     elif condition == "positives_only":
         print("  Condition : POSITIVES ONLY")
         print("  Meaning   : unknown labels are ignored; no known negatives available")
@@ -277,6 +292,7 @@ def _print_registry_summary(
             b = assigned_bucket_by_video[v.video_key]
             print(f"{v.video_id:<12}{b:<12}{v.frame_count:<12}")
 
+
 def _print_final_video_bucket_assignments(
     *,
     videos: Sequence[VideoSummary],
@@ -288,12 +304,8 @@ def _print_final_video_bucket_assignments(
     for v in videos:
         bucket = assigned_bucket_by_video[v.video_key]
         datasets_str = ",".join(str(x) for x in sorted(v.dataset_frame_counts.keys()))
-        print(
-            f"{v.video_id:<12}"
-            f"{bucket:<12}"
-            f"{v.frame_count:<12}"
-            f"{datasets_str}"
-        )
+        print(f"{v.video_id:<12}{bucket:<12}{v.frame_count:<12}{datasets_str}")
+
 
 def _print_candidate_scores(
     *,
@@ -314,6 +326,7 @@ def _print_candidate_scores(
     print(f"  Selected bucket : {best_bucket}")
     print(f"  Selected score  : {best_score:.8f}")
 
+
 def _print_new_video_decision_process(
     *,
     video: VideoSummary,
@@ -333,7 +346,11 @@ def _print_new_video_decision_process(
     decision_subsection("Label support for this video")
     table_header("LabelIdx", "LabelName", "Pos", "Neg", "Known", "Unknown")
     for j in range(len(video.pos_counts)):
-        label_name = label_names[j] if label_names is not None and j < len(label_names) else f"label_{j}"
+        label_name = (
+            label_names[j]
+            if label_names is not None and j < len(label_names)
+            else f"label_{j}"
+        )
         print(
             f"{j:<12}"
             f"{label_name:<20}"
@@ -366,7 +383,9 @@ def _print_new_video_decision_process(
             f"{row['dataset_score']:<12.6f}"
         )
 
-    best = sorted(candidate_breakdowns, key=lambda x: (x["total_score"], x["bucket_id"]))[0]
+    best = sorted(
+        candidate_breakdowns, key=lambda x: (x["total_score"], x["bucket_id"])
+    )[0]
 
     decision_subsection("Decision")
     kv("Selected bucket", best["bucket_id"])
@@ -376,6 +395,7 @@ def _print_new_video_decision_process(
         "Minimum total score after simulating this video in every bucket",
     )
     soft_line()
+
 
 def _print_bucket_balance_summary(
     *,
@@ -395,7 +415,11 @@ def _print_bucket_balance_summary(
 
     for j in range(num_labels):
         print()
-        label_name = label_names[j] if label_names is not None and j < len(label_names) else f"label_{j}"
+        label_name = (
+            label_names[j]
+            if label_names is not None and j < len(label_names)
+            else f"label_{j}"
+        )
         subsection(f"BUCKET LABEL BALANCE - label_index={j} ({label_name})")
         table_header("Bucket", "LabelName", "Pos", "Neg", "Known")
         for idx, st in enumerate(bucket_stats):
@@ -407,8 +431,10 @@ def _print_bucket_balance_summary(
                 f"{st.known_counts[j]:<12}"
             )
 
+
 def _label_weights_from_positive_totals(total_pos: Sequence[int]) -> List[float]:
     import math
+
     return [1.0 / math.sqrt(float(x) + 1.0) for x in total_pos]
 
 
@@ -470,11 +496,15 @@ def _compute_score_for_candidate_bucket(
 
     # A. frame balance
     for st in simulated:
-        frame_score += w_frame * ((float(st.frames) - target_frames) / (target_frames + eps)) ** 2
+        frame_score += (
+            w_frame * ((float(st.frames) - target_frames) / (target_frames + eps)) ** 2
+        )
 
     # B. video count balance
     for st in simulated:
-        video_score += w_video * ((float(st.videos) - target_videos) / (target_videos + eps)) ** 2
+        video_score += (
+            w_video * ((float(st.videos) - target_videos) / (target_videos + eps)) ** 2
+        )
 
     # C. label balance
     label_weights = _label_weights_from_positive_totals(total_pos_all_videos)
@@ -504,16 +534,16 @@ def _compute_score_for_candidate_bucket(
             for st in simulated:
                 known_score += (
                     w_known
-                    * ((float(st.known_counts[j]) - target_known) / (target_known + 1.0)) ** 2
+                    * (
+                        (float(st.known_counts[j]) - target_known)
+                        / (target_known + 1.0)
+                    )
+                    ** 2
                 )
 
     # D. dataset concentration balance
     dataset_ids = sorted(
-        {
-            ds_id
-            for st in simulated
-            for ds_id in st.dataset_frame_counts.keys()
-        }
+        {ds_id for st in simulated for ds_id in st.dataset_frame_counts.keys()}
     )
     for ds_id in dataset_ids:
         total_ds_frames = sum(st.dataset_frame_counts.get(ds_id, 0) for st in simulated)
@@ -525,12 +555,7 @@ def _compute_score_for_candidate_bucket(
             dataset_score += w_dataset * ((actual - target_ds) / (target_ds + 1.0)) ** 2
 
     total_score = (
-        frame_score
-        + video_score
-        + pos_score
-        + neg_score
-        + known_score
-        + dataset_score
+        frame_score + video_score + pos_score + neg_score + known_score + dataset_score
     )
 
     total_score += float(candidate_bucket_id) * 1e-12
@@ -573,9 +598,7 @@ def _video_hardness(
             neg_mass += float(n) / math.sqrt(float(total_n) + 1.0)
 
     return (
-        3.0 * float(video.frame_count)
-        + 10.0 * float(rare_mass)
-        + 5.0 * float(neg_mass)
+        3.0 * float(video.frame_count) + 10.0 * float(rare_mass) + 5.0 * float(neg_mass)
     )
 
 
@@ -596,14 +619,21 @@ def assign_buckets_with_persistent_video_registry(
     """
     num_samples = len(video_ids)
     if not (
-        len(video_ids) == len(dataset_ids_per_frame) == len(label_vectors) == len(label_masks)
+        len(video_ids)
+        == len(dataset_ids_per_frame)
+        == len(label_vectors)
+        == len(label_masks)
     ):
-        raise ValueError("video_ids, dataset_ids_per_frame, label_vectors, label_masks must align")
+        raise ValueError(
+            "video_ids, dataset_ids_per_frame, label_vectors, label_masks must align"
+        )
     if num_samples == 0:
         raise ValueError("No samples to assign")
 
     num_buckets = int(config.bucket_policy.num_buckets)
-    registry_path = Path(config.training_root) / "bucket_registry" / "video_bucket_registry.json"
+    registry_path = (
+        Path(config.training_root) / "bucket_registry" / "video_bucket_registry.json"
+    )
     registry = VideoBucketRegistry.load(path=registry_path, num_buckets=num_buckets)
 
     all_videos = _summarize_videos(
@@ -614,11 +644,11 @@ def assign_buckets_with_persistent_video_registry(
     )
     num_labels = len(all_videos[0].pos_counts)
 
-    '''_print_video_grouping_summary(
+    """_print_video_grouping_summary(
         videos=all_videos,
         num_labels=num_labels,
         label_names=label_names,
-    )'''
+    )"""
 
     total_frames_all = sum(v.frame_count for v in all_videos)
     total_videos_all = len(all_videos)
@@ -637,8 +667,7 @@ def assign_buckets_with_persistent_video_registry(
         all_video_summaries=all_videos,
     )
 
-    #_print_allocator_condition(condition)
-
+    # _print_allocator_condition(condition)
 
     diagnostics: Dict[str, Any] = {
         "condition": condition,
@@ -647,11 +676,7 @@ def assign_buckets_with_persistent_video_registry(
             "total_videos": len(all_videos),
             "total_frames": sum(v.frame_count for v in all_videos),
             "total_datasets": len(
-                {
-                    ds_id
-                    for v in all_videos
-                    for ds_id in v.dataset_frame_counts.keys()
-                }
+                {ds_id for v in all_videos for ds_id in v.dataset_frame_counts.keys()}
             ),
         },
         "existing_videos": [],
@@ -700,12 +725,12 @@ def assign_buckets_with_persistent_video_registry(
         for v in new_videos
     ]
 
-    '''_print_registry_summary(
+    """_print_registry_summary(
         registry_path=registry_path,
         old_videos=old_videos,
         new_videos=new_videos,
         assigned_bucket_by_video=assigned_bucket_by_video,
-    )'''
+    )"""
 
     # Seed bucket stats with already-frozen assignments
     for v in old_videos:
@@ -726,7 +751,7 @@ def assign_buckets_with_persistent_video_registry(
     )
 
     #
-    '''for v in new_videos_sorted:
+    """for v in new_videos_sorted:
         candidate_scores: List[tuple[float, int]] = []
         for b in range(num_buckets):
             s = _compute_score_for_candidate_bucket(
@@ -742,7 +767,7 @@ def assign_buckets_with_persistent_video_registry(
             )
             candidate_scores.append((s, b))
 
-        
+
 
         _print_candidate_scores(
             video=v,
@@ -754,7 +779,7 @@ def assign_buckets_with_persistent_video_registry(
 
         assigned_bucket_by_video[v.video_key] = best_bucket
         registry.set(v.video_key, best_bucket)
-        _add_video_to_bucket_stats(bucket_stats[best_bucket], v)'''
+        _add_video_to_bucket_stats(bucket_stats[best_bucket], v)"""
     #
 
     for v in new_videos_sorted:
@@ -773,12 +798,12 @@ def assign_buckets_with_persistent_video_registry(
             )
             candidate_breakdowns.append(breakdown)
 
-        '''_print_new_video_decision_process(
+        """_print_new_video_decision_process(
             video=v,
             condition=condition,
             candidate_breakdowns=candidate_breakdowns,
             label_names=label_names,
-        )'''
+        )"""
 
         diagnostics["new_video_decisions"].append(
             {
@@ -795,7 +820,9 @@ def assign_buckets_with_persistent_video_registry(
             }
         )
 
-        best = sorted(candidate_breakdowns, key=lambda x: (x["total_score"], x["bucket_id"]))[0]
+        best = sorted(
+            candidate_breakdowns, key=lambda x: (x["total_score"], x["bucket_id"])
+        )[0]
         best_bucket = int(best["bucket_id"])
 
         assigned_bucket_by_video[v.video_key] = best_bucket
@@ -827,15 +854,15 @@ def assign_buckets_with_persistent_video_registry(
         for idx, st in enumerate(bucket_stats)
     ]
 
-    '''_print_final_video_bucket_assignments(
+    """_print_final_video_bucket_assignments(
         videos=all_videos,
         assigned_bucket_by_video=assigned_bucket_by_video,
-    )'''
+    )"""
 
-    '''_print_bucket_balance_summary(
+    """_print_bucket_balance_summary(
         bucket_stats=bucket_stats,
         label_names=label_names,
-    )'''
+    )"""
 
     bucket_ids_per_sample: List[int] = []
     bucket_map: Dict[str, int] = dict(sorted(assigned_bucket_by_video.items()))

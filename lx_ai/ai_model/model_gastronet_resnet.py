@@ -65,7 +65,9 @@ class GastroNetResNet50Spec(AppBaseModel):
     def to_ddict(self) -> GastroNetResNetSpecDataDict:
         return self.ddict(
             num_labels=self.num_labels,
-            backbone_checkpoint=str(self.backbone_checkpoint) if self.backbone_checkpoint else None,
+            backbone_checkpoint=str(self.backbone_checkpoint)
+            if self.backbone_checkpoint
+            else None,
             freeze_backbone=self.freeze_backbone,
         )
 

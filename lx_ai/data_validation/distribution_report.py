@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict
 
 import torch
 
 from lx_ai.utils.logging_utils import section, subsection, table_header
+
 
 # ----------------------------
 # Public output shapes
@@ -22,8 +22,10 @@ class LabelStats(TypedDict):
     negatives: int
     known: int
     unknown: int
-    pos_rate: Optional[float]          # positives / known
-    imbalance_ratio: Optional[float]   # max(pos,neg)/min(pos,neg) among known (None if cannot define)
+    pos_rate: Optional[float]  # positives / known
+    imbalance_ratio: Optional[
+        float
+    ]  # max(pos,neg)/min(pos,neg) among known (None if cannot define)
 
 
 class SplitLabelSummary(TypedDict):
@@ -130,16 +132,16 @@ def _compute_split_label_stats(
             "labels": [],
         }
 
-    v_t = torch.tensor(vec, dtype=torch.int64)     # [N,C]
-    m_t = torch.tensor(msk, dtype=torch.int64)     # [N,C]
+    v_t = torch.tensor(vec, dtype=torch.int64)  # [N,C]
+    m_t = torch.tensor(msk, dtype=torch.int64)  # [N,C]
 
-    known = (m_t == 1)
-    unknown = (m_t == 0)
+    known = m_t == 1
+    unknown = m_t == 0
 
     positives = ((v_t == 1) & known).sum(dim=0)  # [C]
     negatives = ((v_t == 0) & known).sum(dim=0)  # [C]
-    known_counts = known.sum(dim=0)              # [C]
-    unknown_counts = unknown.sum(dim=0)          # [C]
+    known_counts = known.sum(dim=0)  # [C]
+    unknown_counts = unknown.sum(dim=0)  # [C]
 
     out: List[LabelStats] = []
     c = int(v_t.shape[1])
@@ -200,8 +202,6 @@ def _split_similarity_from_pos_rates(
     pb = []
 
     for la, lb in zip(a["labels"], b["labels"]):
-        ka = la["known"]
-        kb = lb["known"]
         posa = la["positives"]
         posb = lb["positives"]
 
@@ -309,9 +309,17 @@ def write_data_validation_report(
         }
     ]
 
-    exam_train = _exam_summary(old_examination_ids=old_examination_ids, indices=train_indices, split_name="train")
-    exam_val = _exam_summary(old_examination_ids=old_examination_ids, indices=val_indices, split_name="val")
-    exam_test = _exam_summary(old_examination_ids=old_examination_ids, indices=test_indices, split_name="test")
+    exam_train = _exam_summary(
+        old_examination_ids=old_examination_ids,
+        indices=train_indices,
+        split_name="train",
+    )
+    exam_val = _exam_summary(
+        old_examination_ids=old_examination_ids, indices=val_indices, split_name="val"
+    )
+    exam_test = _exam_summary(
+        old_examination_ids=old_examination_ids, indices=test_indices, split_name="test"
+    )
 
     report: DataValidationReport = {
         "version": "1.0",
@@ -330,54 +338,63 @@ def write_data_validation_report(
     label_csv = out_dir / "label_stats.csv"
     with label_csv.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow([
-            "split",
-            "label_index",
-            "label_id",
-            "label_name",
-            "positives",
-            "negatives",
-            "known",
-            "unknown",
-            "pos_rate",
-            "imbalance_ratio",
-        ])
+        w.writerow(
+            [
+                "split",
+                "label_index",
+                "label_id",
+                "label_name",
+                "positives",
+                "negatives",
+                "known",
+                "unknown",
+                "pos_rate",
+                "imbalance_ratio",
+            ]
+        )
         for split_sum in (train_sum, val_sum, test_sum):
             for ls in split_sum["labels"]:
-                w.writerow([
-                    split_sum["split_name"],
-                    ls["label_index"],
-                    ls["label_id"],
-                    ls["label_name"],
-                    ls["positives"],
-                    ls["negatives"],
-                    ls["known"],
-                    ls["unknown"],
-                    ls["pos_rate"],
-                    ls["imbalance_ratio"],
-                ])
+                w.writerow(
+                    [
+                        split_sum["split_name"],
+                        ls["label_index"],
+                        ls["label_id"],
+                        ls["label_name"],
+                        ls["positives"],
+                        ls["negatives"],
+                        ls["known"],
+                        ls["unknown"],
+                        ls["pos_rate"],
+                        ls["imbalance_ratio"],
+                    ]
+                )
 
     # --- write exam CSV ---
     exam_csv = out_dir / "exam_stats.csv"
     with exam_csv.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow([
-            "split",
-            "unique_exams",
-            "frames",
-            "mean_frames_per_exam",
-            "max_frames_per_exam",
-        ])
+        w.writerow(
+            [
+                "split",
+                "unique_exams",
+                "frames",
+                "mean_frames_per_exam",
+                "max_frames_per_exam",
+            ]
+        )
         for es in (exam_train, exam_val, exam_test):
-            w.writerow([
-                es["split_name"],
-                es["unique_exams"],
-                es["frames"],
-                f"{es['mean_frames_per_exam']:.4f}",
-                es["max_frames_per_exam"],
-            ])
+            w.writerow(
+                [
+                    es["split_name"],
+                    es["unique_exams"],
+                    es["frames"],
+                    f"{es['mean_frames_per_exam']:.4f}",
+                    es["max_frames_per_exam"],
+                ]
+            )
 
     return json_path, label_csv, exam_csv
+
 
 def print_data_validation_report_to_console(report: DataValidationReport) -> None:
     section("DATA VALIDATION REPORT", icon="📊")
@@ -392,22 +409,10 @@ def print_data_validation_report_to_console(report: DataValidationReport) -> Non
             print("  No samples in this split.")
             continue
 
-        table_header(
-            "Label",
-            "Pos",
-            "Neg",
-            "Known",
-            "Unknown",
-            "PosRate",
-            "Imbal"
-        )
+        table_header("Label", "Pos", "Neg", "Known", "Unknown", "PosRate", "Imbal")
 
         for ls in split["labels"]:
-            pos_rate = (
-                f"{ls['pos_rate']:.3f}"
-                if ls["pos_rate"] is not None
-                else "N/A"
-            )
+            pos_rate = f"{ls['pos_rate']:.3f}" if ls["pos_rate"] is not None else "N/A"
             imbalance = (
                 f"{ls['imbalance_ratio']:.2f}"
                 if ls["imbalance_ratio"] is not None
@@ -433,40 +438,23 @@ def print_data_validation_report_to_console(report: DataValidationReport) -> Non
 
     for comp in report["label_distribution_similarity"]:
         tv = (
-            f"{comp['train_vs_val']:.6f}"
-            if comp["train_vs_val"] is not None
-            else "N/A"
+            f"{comp['train_vs_val']:.6f}" if comp["train_vs_val"] is not None else "N/A"
         )
         tt = (
             f"{comp['train_vs_test']:.6f}"
             if comp["train_vs_test"] is not None
             else "N/A"
         )
-        vt = (
-            f"{comp['val_vs_test']:.6f}"
-            if comp["val_vs_test"] is not None
-            else "N/A"
-        )
+        vt = f"{comp['val_vs_test']:.6f}" if comp["val_vs_test"] is not None else "N/A"
 
-        print(
-            f"{comp['metric'][:20]:<20} "
-            f"{tv:<15} "
-            f"{tt:<15} "
-            f"{vt:<15}"
-        )
+        print(f"{comp['metric'][:20]:<20} {tv:<15} {tt:<15} {vt:<15}")
 
     # ---------------------------------------------------------
     # EXAM DISTRIBUTION
     # ---------------------------------------------------------
     subsection("EXAMINATION DISTRIBUTION")
 
-    table_header(
-        "Split",
-        "UniqueExams",
-        "Frames",
-        "MeanFrames",
-        "MaxFrames"
-    )
+    table_header("Split", "UniqueExams", "Frames", "MeanFrames", "MaxFrames")
 
     for ex in report["examinations"]:
         print(
@@ -475,4 +463,4 @@ def print_data_validation_report_to_console(report: DataValidationReport) -> Non
             f"{ex['frames']:<12} "
             f"{ex['mean_frames_per_exam']:<12.2f} "
             f"{ex['max_frames_per_exam']:<12}"
-)
+        )
