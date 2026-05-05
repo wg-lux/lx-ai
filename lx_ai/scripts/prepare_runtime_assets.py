@@ -1,3 +1,4 @@
+# lx_ai/scripts/prepare_runtime_assets.py
 from __future__ import annotations
 
 import os
@@ -14,6 +15,17 @@ REQUIRED_ASSETS = [
     },
 ]
 
+# TODO commenting it as currently , prvt link to download checkpoint provided, need to update with actual url in .env and luxnix lx-ai-local
+"""def _download(url: str, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+
+    print(f"[DOWNLOAD] {url}")
+    print(f"[TARGET]   {target}")
+
+    urllib.request.urlretrieve(url, tmp)
+    tmp.replace(target)"""
+
 
 def _download(url: str, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -22,7 +34,16 @@ def _download(url: str, target: Path) -> None:
     print(f"[DOWNLOAD] {url}")
     print(f"[TARGET]   {target}")
 
-    urllib.request.urlretrieve(url, tmp)
+    if "drive.google.com" in url:
+        import gdown
+
+        gdown.download(url=url, output=str(tmp), quiet=False, fuzzy=True)
+    else:
+        urllib.request.urlretrieve(url, tmp)
+
+    if not tmp.is_file() or tmp.stat().st_size == 0:
+        raise RuntimeError(f"Download failed or produced empty file: {tmp}")
+
     tmp.replace(target)
 
 
