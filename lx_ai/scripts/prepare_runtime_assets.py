@@ -37,7 +37,8 @@ def _download(url: str, target: Path) -> None:
     if "drive.google.com" in url:
         import gdown
 
-        gdown.download(url=url, output=str(tmp), quiet=False, fuzzy=True)
+        # gdown.download(url=url, output=str(tmp), quiet=False, fuzzy=True)
+        gdown.download(url, str(tmp), quiet=False)
     else:
         urllib.request.urlretrieve(url, tmp)
 
