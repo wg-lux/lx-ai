@@ -123,11 +123,13 @@ in
       }:/run/opengl-driver/lib:/run/opengl-driver-32/lib"
     '';
     prepare-assets.exec = ''
+      set -euo pipefail
       source .devenv/state/venv/bin/activate
       secretspec run --provider env -- uv run python lx_ai/scripts/prepare_runtime_assets.py
     '';
 
     lxai_training.exec = ''
+      set -euo pipefail
       source .devenv/state/venv/bin/activate
       secretspec run --provider env -- uv run python lx_ai/scripts/prepare_runtime_assets.py
       secretspec run --provider env -- uv run python lx_ai/run_training.py
