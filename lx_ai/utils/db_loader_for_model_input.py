@@ -120,37 +120,65 @@ def _get_db_connection_kwargs() -> dict:
     }
 
 
+# TODO Making old_examination_id nullable in the DB schema would be ideal, but for now we can just treat it as optional in the code.
+def _postgres_column_exists(cur, table_name: str, column_name: str) -> bool:
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = %s
+              AND column_name = %s
+        )
+        """,
+        (table_name, column_name),
+    )
+    row = cur.fetchone()
+    return bool(row and row[0])
+
+
 # It will deals with both databases
 def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
-    sql = """
-    SELECT
-        dai.aidataset_id        AS aidataset_id,
-        f.id                    AS frame_id,
-        f.relative_path         AS relative_path,
-        vf.frame_dir            AS frame_dir,
-        f.old_examination_id    AS old_examination_id,
-        vf.id                   AS video_id,
-        l.id                    AS label_id,
-        l.name                  AS label_name,
-        a.value                 AS value,
-        a.annotator             AS annotator
-    FROM endoreg_db_aidataset_image_annotations dai
-    JOIN endoreg_db_imageclassificationannotation a
-        ON a.id = dai.imageclassificationannotation_id
-    JOIN endoreg_db_frame f
-        ON f.id = a.frame_id
-    JOIN endoreg_db_videofile vf
-        ON vf.id = f.video_id
-    JOIN endoreg_db_label l
-        ON l.id = a.label_id
-    WHERE dai.aidataset_id = %s
-    """
-
     rows: list[dict] = []
     conn_kwargs = _get_db_connection_kwargs()
 
     with psycopg.connect(**conn_kwargs) as conn:
         with conn.cursor() as cur:
+            has_old_examination_id = _postgres_column_exists(
+                cur,
+                "endoreg_db_frame",
+                "old_examination_id",
+            )
+
+            old_examination_expr = (
+                "f.old_examination_id" if has_old_examination_id else "NULL"
+            )
+
+            sql = f"""
+            SELECT
+                dai.aidataset_id        AS aidataset_id,
+                f.id                    AS frame_id,
+                f.relative_path         AS relative_path,
+                vf.frame_dir            AS frame_dir,
+                {old_examination_expr}  AS old_examination_id,
+                vf.id                   AS video_id,
+                l.id                    AS label_id,
+                l.name                  AS label_name,
+                a.value                 AS value,
+                a.annotator             AS annotator
+            FROM endoreg_db_aidataset_image_annotations dai
+            JOIN endoreg_db_imageclassificationannotation a
+                ON a.id = dai.imageclassificationannotation_id
+            JOIN endoreg_db_frame f
+                ON f.id = a.frame_id
+            JOIN endoreg_db_videofile vf
+                ON vf.id = f.video_id
+            JOIN endoreg_db_label l
+                ON l.id = a.label_id
+            WHERE dai.aidataset_id = %s
+            """
+
             cur.execute(sql, (dataset_id,))
             for row in cur.fetchall():
                 rows.append(
