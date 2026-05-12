@@ -1,0 +1,58 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+
+def ensure_training_frames_available(
+    annotations: list[dict[str, Any]],
+    *,
+    output_root: Path | str,
+    fps: float | None = 50.0,
+    ext: str = "jpg",
+    overwrite: bool = False,
+) -> list[dict[str, Any]]:
+    """
+    Ensure frame files needed for lx-ai training exist.
+
+    This delegates extraction to endoreg-db, because endoreg-db owns:
+    - VideoFile path resolution
+    - protected media paths
+    - Frame.frame_number logic
+    - ffmpeg extraction
+    """
+
+    annotation_ids = [
+        int(ann["annotation_id"])
+        for ann in annotations
+        if ann.get("annotation_id") is not None
+    ]
+
+    if not annotation_ids:
+        return annotations
+
+    from endoreg_db.services.frames.materialize_training_frames import (
+        materialize_frames_for_annotation_ids,
+    )
+
+    path_by_annotation_id = materialize_frames_for_annotation_ids(
+        annotation_ids=annotation_ids,
+        output_root=Path(output_root),
+        fps=fps,
+        ext=ext,
+        overwrite=overwrite,
+    )
+
+    for ann in annotations:
+        annotation_id = ann.get("annotation_id")
+        if annotation_id is None:
+            continue
+
+        materialized_path = path_by_annotation_id.get(int(annotation_id))
+        if materialized_path is None:
+            continue
+
+        ann.setdefault("frame", {})
+        ann["frame"]["resolved_frame_path"] = str(materialized_path)
+
+    return annotations
