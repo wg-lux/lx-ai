@@ -16,6 +16,8 @@ from pydantic import (
 from lx_ai.ai_model_split.bucket_splitter import BucketSplitPolicy
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
+# from pydantic import BaseModel
+
 
 # -----------------------------------------------------------------------------
 # Strong “choice” types (Pydantic validation + IDE autocomplete)
@@ -57,6 +59,21 @@ def _find_repo_root_from_lx_ai(path: Path) -> Path:
     raise RuntimeError(
         f"Could not infer base_dir: no 'lx_ai' directory found above {path}"
     )
+
+
+class FrameMaterializationConfig(AppBaseModel):
+    enabled: bool = False
+    output_root: str = "data/frames/generated"
+    fps: float | None = 50.0
+    ext: str = "jpg"
+    overwrite: bool = False
+
+    @field_validator("output_root", mode="before")
+    @classmethod
+    def _expand_output_root(cls, v: object) -> str:
+        if v is None or v == "":
+            return "data/frames/generated"
+        return os.path.expandvars(str(v))
 
 
 # -----------------------------------------------------------------------------
@@ -114,6 +131,9 @@ class TrainingConfig(AppBaseModel):
     # -------------------------------------------------------------------------
     model_config = AppBaseModel.model_config | ConfigDict(extra="forbid")
 
+    frame_materialization: FrameMaterializationConfig = Field(
+        default_factory=FrameMaterializationConfig
+    )
     # -------------------------------------------------------------------------
     # Constants (ClassVar means: not a field, not part of model_dump)
     # -------------------------------------------------------------------------

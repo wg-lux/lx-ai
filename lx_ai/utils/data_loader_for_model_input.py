@@ -1,6 +1,5 @@
 # lx_ai/utils/data_loader_for_model_input.py
 from __future__ import annotations
-
 import os
 import json
 import sqlite3
@@ -20,7 +19,6 @@ from lx_ai.utils.db_loader_for_model_input import (
 from lx_ai.utils.data_loader_for_model_training import (
     build_image_multilabel_dataset,
 )
-
 from lx_ai.ai_model_split.bucket_integrity_checker import verify_bucket_integrity
 from lx_ai.ai_model_split.video_bucket_allocator import (
     assign_buckets_with_persistent_video_registry,
@@ -418,8 +416,27 @@ def build_dataset_for_training(
             dataset_id=config.dataset_id
         )"""
         for ds_id in config.dataset_ids:
-            # anns = load_annotations_from_postgres(dataset_id=ds_id)
             anns = load_annotations(config=config, dataset_id=ds_id)
+
+            from lx_ai.utils.frame_materializer import ensure_training_frames_available
+
+            frame_materialization = getattr(config, "frame_materialization", None)
+
+            if frame_materialization and getattr(
+                frame_materialization, "enabled", False
+            ):
+                anns = ensure_training_frames_available(
+                    annotations=anns,
+                    output_root=getattr(
+                        frame_materialization,
+                        "output_root",
+                        "data/frames/generated",
+                    ),
+                    fps=getattr(frame_materialization, "fps", 50.0),
+                    ext=getattr(frame_materialization, "ext", "jpg"),
+                    overwrite=getattr(frame_materialization, "overwrite", False),
+                )
+
             all_annotations.extend(anns)
 
         annotations = all_annotations

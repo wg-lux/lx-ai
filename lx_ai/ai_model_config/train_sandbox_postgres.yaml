@@ -6,7 +6,7 @@ dataset_uuid: sandbox_ds
 # DATA SOURCE
 # ------------------------------
 data_source: postgres #jsonl or postgres
-dataset_ids: [1,2] #When new dataset comes:dataset_ids: [1, 2]
+dataset_ids: [2] #When new dataset comes:dataset_ids: [1, 2]
 
 labelset_id: 5
 labelset_version_to_train: 3
@@ -97,3 +97,10 @@ bucket_policy:
   test_buckets: [4]
 
 save_bucket_snapshot: true
+
+frame_materialization:
+  enabled: true
+  output_root: $FRAME_MATERIALIZATION_OUTPUT_ROOT
+  fps: 50.0
+  ext: jpg
+  overwrite: false

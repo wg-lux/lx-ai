@@ -79,6 +79,8 @@ let
     DJANGO_DB_PASSWORD_FILE = config.secretspec.secrets.DJANGO_DB_PASSWORD_FILE;
     DJANGO_DB_SSLMODE = config.secretspec.secrets.DJANGO_DB_SSLMODE;
 
+    FRAME_MATERIALIZATION_OUTPUT_ROOT = config.secretspec.secrets.FRAME_MATERIALIZATION_OUTPUT_ROOT;
+
     LOG_LEVEL = config.secretspec.secrets.LOG_LEVEL;
 };
 
@@ -192,6 +194,8 @@ in
 
       export LEGACY_IMAGE_DIR=''${LEGACY_IMAGE_DIR:-data/legacy_images/images}
       export LEGACY_JSONL_PATH=''${LEGACY_JSONL_PATH:-data/legacy_images/legacy_img_dicts.jsonl}
+
+      export FRAME_MATERIALIZATION_OUTPUT_ROOT=''${FRAME_MATERIALIZATION_OUTPUT_ROOT:-data/frames/generated}
 
       export CSV_DIR=''${CSV_DIR:-data/import/csv}
 

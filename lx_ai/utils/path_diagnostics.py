@@ -1,3 +1,4 @@
+# lx_ai/utils/path_diagnostics.py
 from __future__ import annotations
 
 import os
@@ -24,6 +25,7 @@ PATH_ENV_KEYS: tuple[str, ...] = (
     "CONF_DIR",
     "STORAGE_DIR",
     "FRAME_DIR",
+    "FRAME_MATERIALIZATION_OUTPUT_ROOT",
     "TRAINING_ROOT",
     "CHECKPOINTS_DIR",
     "RUNS_DIR",
@@ -131,9 +133,15 @@ def _path_exists(path: Path | None) -> bool:
 
 
 def _config_value(config: Any, key: str, default: Any = None) -> Any:
-    if isinstance(config, dict):
-        return config.get(key, default)
-    return getattr(config, key, default)
+    return _config_get(config, key, default)
+
+
+def _config_get(obj: Any, key: str, default: Any = None) -> Any:
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
 
 
 def _as_path(value: Any) -> Path | None:
@@ -144,7 +152,50 @@ def _as_path(value: Any) -> Path | None:
     value_str = str(value).strip()
     if not value_str:
         return None
-    return Path(value_str).expanduser()
+    return Path(os.path.expandvars(value_str)).expanduser()
+
+
+def _frame_materialization_config(config: Any) -> Any:
+    return _config_get(config, "frame_materialization", None)
+
+
+def print_frame_materialization_diagnostics(config: Any) -> None:
+    frame_cfg = _frame_materialization_config(config)
+
+    subsection("FRAME MATERIALIZATION")
+
+    enabled = bool(_config_get(frame_cfg, "enabled", False))
+    kv("Enabled", str(enabled))
+
+    if not enabled:
+        warning("Frame materialization is disabled.")
+        return
+
+    output_root = _as_path(_config_get(frame_cfg, "output_root", None))
+    fps = _config_get(frame_cfg, "fps", None)
+    ext = _config_get(frame_cfg, "ext", "jpg")
+    overwrite = _config_get(frame_cfg, "overwrite", False)
+
+    kv("Video lookup owner", "endoreg-db Django ORM")
+    kv("Video source field", "VideoFile.processed_file")
+    kv("Video source resolver", "protected media resolver / Django storage fallback")
+    kv("Generated frame output root", str(output_root) if output_root else "not set")
+    kv(
+        "Generated frame layout",
+        "<output_root>/video_<video_id>/frame_<frame_id>.<ext>",
+    )
+    kv("Frame extension", str(ext))
+    kv("Extraction FPS", str(fps))
+    kv("Overwrite existing frames", str(overwrite))
+
+    if output_root is None:
+        error("Frame materialization output_root is not set.")
+    elif output_root.exists():
+        success(f"Frame materialization output root exists: {output_root}")
+    else:
+        warning(
+            f"Frame materialization output root will be created if needed: {output_root}"
+        )
 
 
 def validate_runtime_paths_for_training(config: Any) -> None:
@@ -176,6 +227,16 @@ def validate_runtime_paths_for_training(config: Any) -> None:
     )
     runs_dir = _as_path(_config_value(config, "runs_dir")) or _env_path("RUNS_DIR")
     bucket_snapshot_dir = _env_path("BUCKET_SNAPSHOT_DIR")
+
+    frame_materialization = _frame_materialization_config(config)
+
+    frame_materialization_enabled = bool(
+        _config_get(frame_materialization, "enabled", False)
+    )
+
+    frame_materialization_output_root = _as_path(
+        _config_get(frame_materialization, "output_root", None)
+    )
 
     backbone_name = str(_config_value(config, "backbone_name", ""))
     backbone_checkpoint = _as_path(_config_value(config, "backbone_checkpoint"))
@@ -263,6 +324,15 @@ def validate_runtime_paths_for_training(config: Any) -> None:
         ("BUCKET_SNAPSHOT_DIR", bucket_snapshot_dir, "bucket snapshot directory"),
     ]
 
+    if frame_materialization_enabled:
+        creatable_dirs.append(
+            (
+                "frame_materialization.output_root",
+                frame_materialization_output_root,
+                "generated training frame output directory",
+            )
+        )
+
     for name, path, reason in creatable_dirs:
         if path is None:
             missing_required.append((name, "not set", reason))
@@ -314,6 +384,8 @@ def validate_runtime_paths_for_training(config: Any) -> None:
         )
 
     success("All required runtime paths are valid.")
+
+    print_frame_materialization_diagnostics(config)
 
     subsection("Optional path check")
     if warnings:

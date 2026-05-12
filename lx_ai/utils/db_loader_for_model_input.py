@@ -160,11 +160,17 @@ def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
                 dai.aidataset_id        AS aidataset_id,
                 f.id                    AS frame_id,
                 f.relative_path         AS relative_path,
+                f.frame_number          AS frame_number,
+                f.timestamp             AS timestamp,
                 vf.frame_dir            AS frame_dir,
                 {old_examination_expr}  AS old_examination_id,
                 vf.id                   AS video_id,
+                vf.uuid                 AS video_uuid,
+                vf.processed_file       AS processed_file,
+                vf.fps                  AS video_fps,
                 l.id                    AS label_id,
                 l.name                  AS label_name,
+                a.id                    AS annotation_id,
                 a.value                 AS value,
                 a.annotator             AS annotator
             FROM endoreg_db_aidataset_image_annotations dai
@@ -184,19 +190,26 @@ def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
                 rows.append(
                     {
                         "dataset_id": row[0],
+                        "annotation_id": row[13],
                         "frame": {
                             "id": row[1],
                             "relative_path": row[2],
-                            "file_path": row[3],
-                            "old_examination_id": row[4],
-                            "video_id": row[5],
+                            "frame_number": row[3],
+                            "timestamp": row[4],
+                            "file_path": row[5],
+                            "frame_dir": row[5],
+                            "old_examination_id": row[6],
+                            "video_id": row[7],
+                            "video_uuid": row[8],
+                            "processed_file": row[9],
+                            "video_fps": row[10],
                         },
                         "label": {
-                            "id": row[6],
-                            "name": row[7],
+                            "id": row[11],
+                            "name": row[12],
                         },
-                        "value": row[8],
-                        "annotator": row[9],
+                        "value": row[14],
+                        "annotator": row[15],
                     }
                 )
 
@@ -279,16 +292,22 @@ def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
 
     sql = """
     SELECT
-        dai.aidataset_id,
-        f.id,
-        f.relative_path,
-        vf.frame_dir,
-        f.old_examination_id,
-        vf.id,
-        l.id,
-        l.name,
-        a.value,
-        a.annotator
+        dai.aidataset_id        AS aidataset_id,
+        f.id                    AS frame_id,
+        f.relative_path         AS relative_path,
+        f.frame_number          AS frame_number,
+        f.timestamp             AS timestamp,
+        f.old_examination_id    AS old_examination_id,
+        vf.id                   AS video_id,
+        vf.uuid                 AS video_uuid,
+        vf.frame_dir            AS frame_dir,
+        vf.processed_file       AS processed_file,
+        vf.fps                  AS video_fps,
+        l.id                    AS label_id,
+        l.name                  AS label_name,
+        a.id                    AS annotation_id,
+        a.value                 AS value,
+        a.annotator             AS annotator
     FROM endoreg_db_aidataset_image_annotations dai
     JOIN endoreg_db_imageclassificationannotation a
         ON a.id = dai.imageclassificationannotation_id
@@ -312,19 +331,29 @@ def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
         rows.append(
             {
                 "dataset_id": row[0],
+                "annotation_id": row[13],
                 "frame": {
                     "id": row[1],
                     "relative_path": row[2],
-                    "file_path": row[3],
-                    "old_examination_id": row[4],
-                    "video_id": row[5],
+                    "frame_number": row[3],
+                    "timestamp": row[4],
+                    "old_examination_id": row[5],
+                    "video_id": row[6],
+                    "video_uuid": row[7],
+                    "file_path": row[8],
+                    "frame_dir": row[8],
+                    "processed_file": row[9],
+                    "video_fps": row[10],
                 },
                 "label": {
-                    "id": row[6],
-                    "name": row[7],
+                    "id": row[11],
+                    "name": row[12],
                 },
-                "value": row[8],
-                "annotator": row[9],
+                "annotation": {
+                    "id": row[13],
+                },
+                "value": row[14],
+                "annotator": row[15],
             }
         )
 

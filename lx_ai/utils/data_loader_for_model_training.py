@@ -35,7 +35,12 @@ AIModelType = Literal["image_multilabel_classification"]
 class FrameDict(TypedDict, total=False):
     id: int
     file_path: str
+    relative_path: str
+    resolved_frame_path: str
+    frame_number: int
+    timestamp: float
     old_examination_id: Optional[int]
+    video_id: int
 
 
 class LabelSetDict(TypedDict, total=False):
@@ -231,6 +236,45 @@ def _require(obj: Any, key: str) -> Any:
     if v is None:
         raise ValueError(f"Required field '{key}' missing on {type(obj)!r}")
     return v
+
+
+def _resolve_training_frame_path(frame: Any) -> Path:
+    """
+    Resolve final image path for training.
+
+    Priority:
+    1. resolved_frame_path: frame generated/materialized by lx-ai/endoreg-db
+    2. file_path + relative_path: existing frame directory behavior
+
+    This keeps old behavior compatible and only uses generated frames when present.
+    """
+    resolved = _get(frame, "resolved_frame_path", None)
+    if resolved:
+        return Path(str(resolved)).expanduser().resolve()
+
+    frame_dir = _require(frame, "file_path")
+    relative_path = _require(frame, "relative_path")
+
+    if not str(frame_dir).strip():
+        raise ValueError("Empty frame directory")
+
+    if not str(relative_path).strip():
+        raise ValueError("Empty relative_path")
+
+    raw_frame_dir = Path(str(frame_dir))
+    rel_path = Path(str(relative_path))
+
+    remap_source = os.getenv("FRAME_PATH_REMAP_SOURCE", "").strip()
+    remap_target = os.getenv("FRAME_PATH_REMAP_TARGET", "").strip()
+
+    if remap_source and remap_target:
+        raw_frame_dir_str = str(raw_frame_dir)
+        if raw_frame_dir_str.startswith(remap_source):
+            raw_frame_dir = Path(
+                raw_frame_dir_str.replace(remap_source, remap_target, 1)
+            )
+
+    return (raw_frame_dir / rel_path).expanduser().resolve()
 
 
 def _label_key(label: Any) -> int:
@@ -469,6 +513,18 @@ def build_image_multilabel_dataset(
         # liine 456 to 470 and in place of this added new logic that change sthe path to /home/admin/dev/lx-ai/data/frames_mirror/<hash>/frame_x.jpg and generated placeholder image at
         # lx_ai/scripts/materialize_missing_frames_remap.py, to set this before running script run export restricted path and then local path like export FRAME_PATH_REMAP_TARGET="/home/admin/dev/lx-ai/data/frames_mirror".
         # How to go back to the real paths: Just unset the variables: unset FRAME_PATH_REMAP_SOURCE and unset FRAME_PATH_REMAP_TARGET
+        file_path = _resolve_training_frame_path(frame)
+        image_paths.append(file_path)
+
+        if not file_path.is_file():
+            raise FileNotFoundError(
+                f"Image file not found: {file_path}. "
+                f"frame_id={frame_id}. "
+                "If using materialized frames, check resolved_frame_path. "
+                "If using existing frame paths locally, check "
+                "FRAME_PATH_REMAP_SOURCE and FRAME_PATH_REMAP_TARGET."
+            )
+
         """frame_dir = _require(frame, "file_path")
         relative_path = _require(frame, "relative_path")
 
@@ -485,6 +541,7 @@ def build_image_multilabel_dataset(
             raise FileNotFoundError(f"Image file not found: {file_path}"
                                     f"(frame_dir={frame_dir}, relative_path={relative_path})")"""
 
+        """
         frame_dir = _require(frame, "file_path")
         relative_path = _require(frame, "relative_path")
 
@@ -518,6 +575,7 @@ def build_image_multilabel_dataset(
                 "If running locally with production frame paths, set "
                 "FRAME_PATH_REMAP_SOURCE and FRAME_PATH_REMAP_TARGET."
             )
+            """
 
         vec: List[Optional[int]] = [None] * num_labels
 
