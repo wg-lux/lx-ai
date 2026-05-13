@@ -40,6 +40,12 @@ let
 
     TRAINING_CONFIG_PATH = config.secretspec.secrets.TRAINING_CONFIG_PATH;
 
+    LX_ANNOTATE_ENCRYPTED_DATA_DIR = config.secretspec.secrets.LX_ANNOTATE_ENCRYPTED_DATA_DIR;
+    DJANGO_DATA_DIR = config.secretspec.secrets.DJANGO_DATA_DIR;
+    STORAGE_DIR = config.secretspec.secrets.STORAGE_DIR;
+    PROTECTED_MEDIA_ROOT = config.secretspec.secrets.PROTECTED_MEDIA_ROOT;
+    FRAME_MATERIALIZATION_OUTPUT_ROOT = config.secretspec.secrets.FRAME_MATERIALIZATION_OUTPUT_ROOT;
+
     TRAINING_ROOT = config.secretspec.secrets.TRAINING_ROOT;
     CHECKPOINTS_DIR = config.secretspec.secrets.CHECKPOINTS_DIR;
     RUNS_DIR = config.secretspec.secrets.RUNS_DIR;
@@ -62,7 +68,6 @@ let
     DATA_DIR = config.secretspec.secrets.DATA_DIR;
     CONF_DIR = config.secretspec.secrets.CONF_DIR;
 
-    STORAGE_DIR = config.secretspec.secrets.DATA_DIR;
 
     DJANGO_ENV = config.secretspec.secrets.DJANGO_ENV;
     DJANGO_DEBUG = config.secretspec.secrets.DJANGO_DEBUG;
@@ -79,7 +84,6 @@ let
     DJANGO_DB_PASSWORD_FILE = config.secretspec.secrets.DJANGO_DB_PASSWORD_FILE;
     DJANGO_DB_SSLMODE = config.secretspec.secrets.DJANGO_DB_SSLMODE;
 
-    FRAME_MATERIALIZATION_OUTPUT_ROOT = config.secretspec.secrets.FRAME_MATERIALIZATION_OUTPUT_ROOT;
 
     LOG_LEVEL = config.secretspec.secrets.LOG_LEVEL;
 };
