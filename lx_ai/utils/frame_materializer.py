@@ -3,10 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from lx_ai.utils.endoregdb_encrypted_frame_bridge import (
-    materialize_frames_for_lxai_annotations,
-)
-
 
 def ensure_training_frames_available(
     annotations: list[dict[str, Any]],
@@ -30,6 +26,10 @@ def ensure_training_frames_available(
         f"[FRAME MATERIALIZATION] output_root={Path(output_root).expanduser().resolve()}"
     )
     print(f"[FRAME MATERIALIZATION] fps={fps}, ext={ext}, overwrite={overwrite}")
+
+    from lx_ai.utils.endoregdb_encrypted_frame_bridge import (
+        materialize_frames_for_lxai_annotations,
+    )
 
     path_by_annotation_id = materialize_frames_for_lxai_annotations(
         annotation_ids=annotation_ids,

@@ -19,6 +19,10 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # required for endoreg DB models
     "endoreg_db",
+    # lx-data-models Django app.
+    # Python module path is lx_dtypes.django,
+    # Django app label is lx_dtypes_django.
+    "lx_dtypes.django.apps.LxDtypesDjangoConfig",
     # useful tools
     "django_extensions",
     "rest_framework",

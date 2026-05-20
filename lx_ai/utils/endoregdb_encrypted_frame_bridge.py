@@ -1,23 +1,21 @@
 from __future__ import annotations
 
+import os
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from django.db.models import QuerySet
+from typing import TYPE_CHECKING
 
-from endoreg_db.export.frames.export_frames_with_labels import (
-    _assert_video_media_export_ready,
-    _extract_and_move_transcoded_frames,
-    _frame_pk_filename,
-    _resolve_processed_video_source_path,
-)
-from endoreg_db.models import ImageClassificationAnnotation, VideoFile
+if TYPE_CHECKING:
+    from endoreg_db.models import VideoFile
 from endoreg_db.utils.encryption.encryption import MAGIC
-from endoreg_db.utils.encryption.storage_materialization import (
-    materialized_plaintext_field_file,
+from endoreg_db.utils.file_operations import (
+    ensure_directory,
+    safe_unlink_file,
 )
-from endoreg_db.utils.file_operations import ensure_directory
+from endoreg_db.utils.storage_streaming import field_file_size, iter_field_file_bytes
+from tempfile import NamedTemporaryFile
 
 
 def _path_is_encrypted(path: Path) -> bool:
@@ -43,13 +41,75 @@ def _field_file_is_encrypted(video: VideoFile, source_path: Path | None) -> bool
     )
 
 
+def _encryption_key_configured() -> bool:
+    key_value = os.environ.get("LX_ANNOTATE_MASTER_KEY", "").strip()
+    key_file = os.environ.get("LX_ANNOTATE_MASTER_KEY_FILE", "").strip()
+
+    if key_value:
+        return True
+
+    if key_file and Path(key_file).expanduser().is_file():
+        return True
+
+    return False
+
+
+def _require_encryption_key_for_video(video: VideoFile) -> None:
+    if _encryption_key_configured():
+        return
+
+    raise RuntimeError(
+        "VideoFile.processed_file appears to be encrypted, but no readable "
+        "LX_ANNOTATE_MASTER_KEY or LX_ANNOTATE_MASTER_KEY_FILE is configured. "
+        f"video_id={video.pk}. Local plaintext videos do not require this key, "
+        "but encrypted videos and production lx-ai runs must use the same "
+        "application master key that was used by lx-annotate/endoreg-db."
+    )
+
+
+def _plaintext_tmp_dir() -> Path | None:
+    raw = os.environ.get("ENDOREG_DB_PLAINTEXT_TMP_DIR", "").strip()
+    if not raw:
+        return None
+
+    return ensure_directory(Path(raw).expanduser().resolve())
+
+
+@contextmanager
+def _materialized_plaintext_field_file_for_lxai(
+    field_file,
+    *,
+    suffix: str = "",
+    prefix: str = "lx-ai-fieldfile-",
+) -> Iterator[Path]:
+    tmp_root = _plaintext_tmp_dir()
+    size = field_file_size(field_file)
+
+    with NamedTemporaryFile(
+        mode="wb",
+        prefix=prefix,
+        suffix=suffix,
+        dir=str(tmp_root) if tmp_root is not None else None,
+        delete=False,
+    ) as tmp:
+        tmp_path = Path(tmp.name)
+        for chunk in iter_field_file_bytes(field_file, start=0, end=size - 1):
+            tmp.write(chunk)
+
+    try:
+        yield tmp_path
+    finally:
+        safe_unlink_file(tmp_path, missing_ok=True)
+
+
 @contextmanager
 def plaintext_processed_video_path(video: VideoFile) -> Iterator[Path]:
     """
     Yield an FFmpeg-readable processed video path.
 
-    - Plaintext local files are used directly.
-    - Encrypted endoreg-db files are decrypted into a temporary plaintext file.
+    - Plaintext local files are used directly and do not require a master key.
+    - Encrypted endoreg-db files require the lx-annotate/endoreg-db master key.
+    - Encrypted files are materialized into lx-ai's configured plaintext temp dir.
     - Temporary plaintext is deleted automatically.
     """
     processed_file = getattr(video, "processed_file", None)
@@ -58,19 +118,23 @@ def plaintext_processed_video_path(video: VideoFile) -> Iterator[Path]:
             f"processed video artifact missing for video={video.pk}"
         )
 
-    source_path = _resolve_processed_video_source_path(video)
+    from endoreg_db.export.frames.export_frames_with_labels import (
+        _resolve_processed_video_source_path,
+    )
 
-    if (
-        source_path
-        and source_path.exists()
-        and not _field_file_is_encrypted(video, source_path)
-    ):
+    source_path = _resolve_processed_video_source_path(video)
+    source_is_encrypted = _field_file_is_encrypted(video, source_path)
+
+    if source_path and source_path.exists() and not source_is_encrypted:
         yield source_path
         return
 
+    if source_is_encrypted or not source_path or not source_path.exists():
+        _require_encryption_key_for_video(video)
+
     suffix = Path(str(processed_file.name)).suffix or ".mp4"
 
-    with materialized_plaintext_field_file(
+    with _materialized_plaintext_field_file_for_lxai(
         processed_file,
         suffix=suffix,
         prefix=f"lx-ai-video-{video.pk}-",
@@ -87,6 +151,13 @@ def materialize_frames_for_lxai_annotations(
     quality: int = 2,
     overwrite: bool = False,
 ) -> dict[int, str]:
+    from endoreg_db.export.frames.export_frames_with_labels import (
+        _assert_video_media_export_ready,
+        _extract_and_move_transcoded_frames,
+        _frame_pk_filename,
+    )
+    from endoreg_db.models import ImageClassificationAnnotation, VideoFile
+
     """
     lx-ai owned frame materialization bridge.
 
@@ -98,7 +169,7 @@ def materialize_frames_for_lxai_annotations(
     """
     root = ensure_directory(Path(output_root))
 
-    annotations: QuerySet[ImageClassificationAnnotation] = (
+    annotations = (
         ImageClassificationAnnotation.objects.filter(pk__in=annotation_ids)
         .select_related("frame", "frame__video")
         .order_by("frame__video_id", "frame_id", "id")
