@@ -10,7 +10,7 @@ def ensure_training_frames_available(
     output_root: Path | str,
     fps: float | None = 50.0,
     ext: str = "jpg",
-    overwrite: bool = False,
+    overwrite: bool = True,
 ) -> list[dict[str, Any]]:
     annotation_ids = [
         int(ann["annotation_id"])
@@ -38,6 +38,22 @@ def ensure_training_frames_available(
         ext=ext,
         overwrite=overwrite,
     )
+
+    missing_annotation_ids = [
+        annotation_id
+        for annotation_id in annotation_ids
+        if annotation_id not in path_by_annotation_id
+    ]
+
+    if missing_annotation_ids:
+        preview = missing_annotation_ids[:20]
+        raise FileNotFoundError(
+            "Frame materialization did not produce resolved paths for "
+            f"{len(missing_annotation_ids)} annotations. "
+            f"First missing annotation IDs: {preview}. "
+            "Refusing to fall back to legacy/remapped frame paths because that can "
+            "create wrong image-label pairs."
+        )
 
     for ann in annotations:
         annotation_id = ann.get("annotation_id")

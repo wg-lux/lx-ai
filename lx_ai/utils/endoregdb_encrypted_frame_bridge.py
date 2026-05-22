@@ -209,6 +209,21 @@ def materialize_frames_for_lxai_annotations(
                 overwrite=overwrite,
             )
 
+            expected_frame_pks = video_frame_pks.get(int(video.pk), set())
+            missing_frame_paths = [
+                frame_dir / _frame_pk_filename(frame_pk, ext)
+                for frame_pk in sorted(expected_frame_pks)
+                if not (frame_dir / _frame_pk_filename(frame_pk, ext)).exists()
+            ]
+
+            if missing_frame_paths:
+                preview = [str(path) for path in missing_frame_paths[:20]]
+                raise FileNotFoundError(
+                    f"Frame materialization failed for video={video.pk}. "
+                    f"Missing {len(missing_frame_paths)} generated frames after "
+                    f"endoreg-db extraction fallback. First missing: {preview}"
+                )
+
     out: dict[int, str] = {}
     for annotation_id, frame_pk in annotation_to_frame_pk.items():
         for video_id, frame_pks in video_frame_pks.items():
