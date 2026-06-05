@@ -31,6 +31,20 @@ def ensure_training_frames_available(
         materialize_frames_for_lxai_annotations,
     )
 
+    # ------------------------------------------------------------------
+    # TEMPORARY DEBUG LIMIT
+    #
+    # Restrict training frame materialization for first service validation.
+    # Remove before real production training.
+    # ------------------------------------------------------------------
+    annotation_ids = annotation_ids[:5]
+
+    print(
+        f"[LXAI DEBUG] limiting frame materialization to "
+        f"{len(annotation_ids)} annotations",
+        flush=True,
+    )
+
     path_by_annotation_id = materialize_frames_for_lxai_annotations(
         annotation_ids=annotation_ids,
         output_root=output_root,
