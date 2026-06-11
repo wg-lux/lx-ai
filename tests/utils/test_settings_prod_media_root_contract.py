@@ -7,6 +7,7 @@ def test_settings_prod_media_root_uses_protected_storage_fallbacks() -> None:
     """
     Production contract:
 
+
     Django MEDIA_ROOT must resolve protected media below lx-annotate storage,
     not below the lx-ai repository.
 
