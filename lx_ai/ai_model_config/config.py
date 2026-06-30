@@ -61,6 +61,17 @@ def _find_repo_root_from_lx_ai(path: Path) -> Path:
     )
 
 
+class TemporalSamplingConfig(AppBaseModel):
+    enabled: bool = False
+
+    max_frames_per_sequence: int = Field(default=5, ge=1)
+    min_distance_frames: int = Field(default=50, ge=0)
+    sequence_gap_frames: int = Field(default=250, ge=1)
+
+    split_on_label_change: bool = True
+    rare_label_aware: bool = True
+
+
 class FrameMaterializationConfig(AppBaseModel):
     enabled: bool = False
     output_root: str = "data/frames/generated"
@@ -133,6 +144,10 @@ class TrainingConfig(AppBaseModel):
 
     frame_materialization: FrameMaterializationConfig = Field(
         default_factory=FrameMaterializationConfig
+    )
+
+    temporal_sampling: TemporalSamplingConfig = Field(
+        default_factory=TemporalSamplingConfig
     )
     # -------------------------------------------------------------------------
     # Constants (ClassVar means: not a field, not part of model_dump)

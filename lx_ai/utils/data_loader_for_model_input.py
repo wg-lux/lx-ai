@@ -419,13 +419,18 @@ def build_dataset_for_training(
         for ds_id in config.dataset_ids:
             anns = load_annotations(config=config, dataset_id=ds_id)
 
-            anns = sample_annotations_temporally(
-                anns,
-                enabled=True,
-                max_frames_per_sequence=5,
-                min_distance_frame=50,
-                sequence_gap_frames=250,
-            )
+            temporal_sampling = getattr(config, "temporal_sampling", None)
+
+            if temporal_sampling and getattr(temporal_sampling, "enabled", False):
+                anns = sample_annotations_temporally(
+                    anns,
+                    enabled=temporal_sampling.enabled,
+                    max_frames_per_sequence=temporal_sampling.max_frames_per_sequence,
+                    min_distance_frames=temporal_sampling.min_distance_frames,
+                    sequence_gap_frames=temporal_sampling.sequence_gap_frames,
+                    split_on_label_change=temporal_sampling.split_on_label_change,
+                    rare_label_aware=temporal_sampling.rare_label_aware,
+                )
 
             from lx_ai.utils.frame_materializer import ensure_training_frames_available
 

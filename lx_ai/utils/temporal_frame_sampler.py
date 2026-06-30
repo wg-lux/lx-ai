@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any
+from lx_ai.utils.logging_utils import section, subsection, kv, table_header, soft_line
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ def _split_sequences(
     frames: list[FrameGroup],
     *,
     sequence_gap_frames: int,
+    split_on_label_change: bool,
 ) -> list[list[FrameGroup]]:
     if not frames:
         return []
@@ -93,7 +95,16 @@ def _split_sequences(
 
     for frame in frames[1:]:
         previous = sequences[-1][-1]
-        if frame.frame_number - previous.frame_number > sequence_gap_frames:
+
+        time_gap_break = (
+            frame.frame_number - previous.frame_number > sequence_gap_frames
+        )
+
+        label_break = (
+            split_on_label_change and frame.positive_labels != previous.positive_labels
+        )
+
+        if time_gap_break or label_break:
             sequences.append([frame])
         else:
             sequences[-1].append(frame)
@@ -107,13 +118,16 @@ def _select_from_sequence(
     max_frames_per_sequence: int,
     min_distance_frames: int,
     label_frequency: Counter[int],
+    rare_label_aware: bool,
 ) -> list[FrameGroup]:
     if len(sequence) <= max_frames_per_sequence:
         return sequence
 
     def score(frame: FrameGroup) -> tuple[float, int, int]:
-        rare_score = sum(
-            1.0 / max(label_frequency[label], 1) for label in frame.positive_labels
+        rare_score = (
+            sum(1.0 / max(label_frequency[label], 1) for label in frame.positive_labels)
+            if rare_label_aware
+            else 0.0
         )
         multi_label_score = len(frame.positive_labels)
         return (rare_score, multi_label_score, -frame.frame_number)
@@ -143,10 +157,12 @@ def _select_from_sequence(
 def sample_annotations_temporally(
     annotations: list[dict[str, Any]],
     *,
-    enabled: bool = True,
-    max_frames_per_sequence: int = 5,
-    min_distance_frames: int = 50,
-    sequence_gap_frames: int = 250,
+    enabled: bool,
+    max_frames_per_sequence: int,
+    min_distance_frames: int,
+    sequence_gap_frames: int,
+    split_on_label_change: bool,
+    rare_label_aware: bool,
 ) -> list[dict[str, Any]]:
     """
     Frame-level temporal sampler.
@@ -183,6 +199,7 @@ def sample_annotations_temporally(
         sequences = _split_sequences(
             video_frames,
             sequence_gap_frames=sequence_gap_frames,
+            split_on_label_change=split_on_label_change,
         )
 
         for sequence in sequences:
@@ -191,6 +208,7 @@ def sample_annotations_temporally(
                 max_frames_per_sequence=max_frames_per_sequence,
                 min_distance_frames=min_distance_frames,
                 label_frequency=label_frequency,
+                rare_label_aware=rare_label_aware,
             )
             selected_frame_ids.update(frame.frame_id for frame in selected)
 
@@ -207,14 +225,76 @@ def sample_annotations_temporally(
         in selected_frame_ids
     ]
 
+    total_sequences = 0
+    for video_frames in by_video.values():
+        total_sequences += len(
+            _split_sequences(
+                video_frames,
+                sequence_gap_frames=sequence_gap_frames,
+                split_on_label_change=split_on_label_change,
+            )
+        )
+
+    section("TEMPORAL FRAME SAMPLING", icon="🎞️")
+
+    subsection("CONFIGURATION")
+    kv("Enabled", enabled)
+    kv("Max frames/sequence", max_frames_per_sequence)
+    kv("Min distance frames", min_distance_frames)
+    kv("Sequence gap frames", sequence_gap_frames)
+    kv("Split on label change", split_on_label_change)
+    kv("Rare label aware", rare_label_aware)
+
+    subsection("MEANING")
     print(
-        "[LXAI SAMPLING] temporal frame sampler active: "
-        f"annotations {len(annotations)} -> {len(sampled)}, "
-        f"frames {len(groups)} -> {len(selected_frame_ids)}, "
-        f"max_frames_per_sequence={max_frames_per_sequence}, "
-        f"min_distance_frames={min_distance_frames}, "
-        f"sequence_gap_frames={sequence_gap_frames}",
-        flush=True,
+        "• enabled: activates frame-level temporal sampling before materialization/training"
     )
+    print(
+        "• max_frames_per_sequence: maximum selected frames from one continuous sequence"
+    )
+    print(
+        "• min_distance_frames: minimum frame-number distance between selected frames"
+    )
+    print("• sequence_gap_frames: gap after which a new temporal sequence starts")
+    print(
+        "• split_on_label_change: starts a new sequence when positive-label set changes"
+    )
+    print("• rare_label_aware: prioritizes rare positive labels and multi-label frames")
+
+    subsection("SAMPLING SUMMARY")
+    kv("Input annotations", len(annotations))
+    kv("Output annotations", len(sampled))
+    kv("Input unique frames", len(groups))
+    kv("Selected unique frames", len(selected_frame_ids))
+    kv("Detected sequences", total_sequences)
+    kv("Videos", len(by_video))
+
+    subsection("REDUCTION")
+    annotation_reduction = 100.0 * (1.0 - (len(sampled) / max(len(annotations), 1)))
+    frame_reduction = 100.0 * (1.0 - (len(selected_frame_ids) / max(len(groups), 1)))
+
+    kv("Annotation reduction", f"{annotation_reduction:.2f}%")
+    kv("Frame reduction", f"{frame_reduction:.2f}%")
+
+    soft_line()
+
+    subsection("PER-VIDEO SAMPLING")
+    table_header("Video", "Frames", "Seq", "Selected")
+
+    for video_id, video_frames in sorted(by_video.items()):
+        sequences = _split_sequences(
+            video_frames,
+            sequence_gap_frames=sequence_gap_frames,
+            split_on_label_change=split_on_label_change,
+        )
+        selected_count = sum(
+            1 for frame in video_frames if frame.frame_id in selected_frame_ids
+        )
+        print(
+            f"{video_id:<10} "
+            f"{len(video_frames):<10} "
+            f"{len(sequences):<10} "
+            f"{selected_count:<10}"
+        )
 
     return sampled
