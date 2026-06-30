@@ -110,8 +110,8 @@ temporal_sampling:
 
   # If two annotated frames are farther apart than this,
   # they are treated as different sequences.
-  # At 50 FPS, 250 frames = 5 seconds.
-  sequence_gap_frames: 300
+  # At 50 FPS, 250 frames = 5 seconds, # 999999999 just to get less frames for sandboxing ,need to change in production and also for testing
+  sequence_gap_frames: 999999999
 
   # If true, a changed positive-label set starts a new sequence.
   split_on_label_change: true
