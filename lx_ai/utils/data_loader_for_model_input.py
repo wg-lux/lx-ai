@@ -26,6 +26,7 @@ from lx_ai.ai_model_split.video_bucket_allocator import (
 from lx_ai.ai_model_split.split_sanity_checker import verify_split_disjointness
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
+from lx_ai.utils.temporal_frame_sampler import sample_annotations_temporally
 
 """if TYPE_CHECKING:
     from pydantic import BaseModel as _TypedBaseModel
@@ -417,6 +418,14 @@ def build_dataset_for_training(
         )"""
         for ds_id in config.dataset_ids:
             anns = load_annotations(config=config, dataset_id=ds_id)
+
+            anns = sample_annotations_temporally(
+                anns,
+                enabled=True,
+                max_frames_per_sequence=5,
+                min_distance_frame=50,
+                sequence_gap_frames=250,
+            )
 
             from lx_ai.utils.frame_materializer import ensure_training_frames_available
 
