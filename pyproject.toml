@@ -1,6 +1,6 @@
 [project]
 name = "lx-ai-module"
-version = "0.1.3"
+version = "0.1.4"
 authors = [
   {name = "Thomas J. Lux", email = "lux_t1@ukw.de"},
 ]
