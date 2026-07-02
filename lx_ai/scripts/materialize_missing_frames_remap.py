@@ -10,8 +10,8 @@ import os
 
 SOURCE_ROOT = Path(os.getenv("FRAME_PATH_REMAP_SOURCE", "")).expanduser()
 TARGET_ROOT = Path(os.getenv("FRAME_PATH_REMAP_TARGET", "")).expanduser()
-#SOURCE_ROOT = Path("")
-#TARGET_ROOT = Path("")
+# SOURCE_ROOT = Path("")
+# TARGET_ROOT = Path("")
 PLACEHOLDER_SIZE = (224, 224)
 
 
@@ -78,5 +78,5 @@ if __name__ == "__main__":
     run()
 
 
-# 
+#
 # secretspec run --provider env -- uv run python manage.py shell -c "from lx_ai.scripts.materialize_missing_frames_remap import run; run()"

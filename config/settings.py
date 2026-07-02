@@ -6,9 +6,9 @@ settings_module = os.getenv(
 )
 
 if settings_module.endswith("settings_prod"):
-    from lx_ai.settings.settings_prod import *
+    from lx_ai.settings.settings_prod import *  # noqa: F403
 else:
-    from lx_ai.settings.settings_dev import *
+    from lx_ai.settings.settings_dev import *  # noqa: F403
 '''"""
 Django settings for config project.
 

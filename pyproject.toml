@@ -1,4 +1,6 @@
 [project]
+name = "lx-ai-module"
+version = "0.1.4"
 authors = [
   {name = "Thomas J. Lux", email = "lux_t1@ukw.de"},
 ]
@@ -11,18 +13,14 @@ classifiers = [
 ]
 dependencies = [
   "pyyaml>=6.0.2",
-  "mypy>=1.19.1",
-  "pre-commit>=4.5.0",
   "pydantic>=2.12.5",
   "torch==2.5.1",
   "numpy>=2.3.5",
   "torchvision==0.20.1",
   "psycopg[binary]>=3.3.2",
-  "pytest>=9.0.2",
-  "pytest-xdist>=3.8.0",
-  "pytest-cov>=7.0.0",
-  "endoreg-db==0.9.0.0",
-  "lx-dtypes",
+  "endoreg-db",
+  "lx-dtypes>=0.1.5",
+  "gdown>=5.2.0",
 ]
 
 description = "Database module based on lx-dtypes for research data management."
@@ -36,10 +34,10 @@ license = {file = "LICENSE"}
 maintainers = [
   {name = "Thomas J. Lux", email = "lux_t1@ukw.de"},
 ]
-name = "lx-ai"
+
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.12,<3.13"
-version = "0.1.0"
+
 
 [project.optional-dependencies]
 dev = [
@@ -47,11 +45,11 @@ dev = [
   "flake8>=7.3.0",
   "linkify-it-py>=2.0.3",
   "myst-parser>=4.0.1",
-  "mypy>=1.16.0",
+  "mypy>=1.19.1",
   "pip>=25.2",
   "pre-commit>=4.5.0",
   "pytest>=9.0.2",
-  "pytest-cov>=6.1.1",
+  "pytest-cov>=7.0.0",
   "pytest-env>=1.1.5",
   "pytest-mypy-plugins>=3.2.0",
   "pytest-xdist>=3.8.0",
@@ -61,6 +59,8 @@ dev = [
   "furo>=2025.9.25",
   "ruff>=0.14.8",
   "twine>=6.2.0",
+  "black>=25.1.0",
+  "types-pyyaml>=6.0.12",
 ]
 
 docs = [
@@ -108,20 +108,18 @@ target-version = ["py312"]
 exclude = [
   "tests",
   "tests/**",
+  "lx_ai/migrations/0001_initial.py",
 ]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
-[tool.setuptools]
-packages = ["lx_ai"]
-
 [tool.hatch.build.targets.wheel]
 packages = ["lx_ai"]
 
 [build-system]
+requires = ["hatchling>=1.29.0"]
 build-backend = "hatchling.build"
-requires = ["hatchling"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
@@ -133,6 +131,7 @@ exclude = [
   "htmlcov/**",
   "storage",
   "storage/**",
+  "lx_ai/migrations/0001_initial.py",
 ]
 
 [tool.uv]
@@ -140,26 +139,18 @@ exclude = [
 environments = [
 
   "sys_platform=='linux'",
-  
+
 ]
 
 [tool.uv.workspace]
 members = [
     "libs/lx-data-models",
+    "libs/endoreg-db",
 ]
 
 [tool.uv.sources]
 lx-dtypes = { workspace = true }
-
-#[tool.uv.workspace]
-#members = [
-#    "libs/lx-data-models",
-#]
-
-#[tool.uv.sources]
-#lx-dtypes = { workspace = true }
-
-
+endoreg-db = { workspace = true }
 
 [tool.coverage.run]
 omit = [

@@ -98,20 +98,14 @@ def test_different_frame_fallback_keys_can_get_different_buckets() -> None:
 
 def test_bucket_distribution_uses_multiple_buckets() -> None:
     # checks hashing does not put all samples into one bucket
-    buckets = {
-        compute_bucket_id(key=f"frame:{i}", num_buckets=5)
-        for i in range(100)
-    }
+    buckets = {compute_bucket_id(key=f"frame:{i}", num_buckets=5) for i in range(100)}
 
     assert len(buckets) > 1
 
 
 def test_bucket_distribution_hits_all_buckets_for_many_samples() -> None:
     # checks enough sample keys reach all buckets
-    buckets = {
-        compute_bucket_id(key=f"frame:{i}", num_buckets=5)
-        for i in range(1000)
-    }
+    buckets = {compute_bucket_id(key=f"frame:{i}", num_buckets=5) for i in range(1000)}
 
     assert buckets == {0, 1, 2, 3, 4}
 

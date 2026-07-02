@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import sqlite3
+from pathlib import Path
 from typing import Optional
 
 import psycopg
@@ -43,6 +45,8 @@ def _first_env(*names: str, default: Optional[str] = None) -> Optional[str]:
         "DEV_DB_PASSWORD, DJANGO_DB_PASSWORD, "
         "DEV_DB_PASSWORD_FILE, or DJANGO_DB_PASSWORD_FILE."
     )'''
+
+
 def _get_password() -> str:
     """
     Resolve DB password safely for both local and service.
@@ -52,12 +56,12 @@ def _get_password() -> str:
     2. DEV_DB_PASSWORD_FILE / DJANGO_DB_PASSWORD_FILE (if file exists)
     """
 
-    # 1️⃣ direct password (best for local)
+    # direct password (best for local)
     pw = _first_env("DEV_DB_PASSWORD", "DJANGO_DB_PASSWORD")
     if pw:
         return pw
 
-    # 2️⃣ password file (used by service)
+    #  password file (used by service)
     pw_file = _first_env("DEV_DB_PASSWORD_FILE", "DJANGO_DB_PASSWORD_FILE")
     if pw_file:
         if os.path.exists(pw_file):
@@ -70,7 +74,7 @@ def _get_password() -> str:
                 "For service: ensure secretspec creates the file."
             )
 
-    # 3️⃣ nothing found
+    #  nothing found
     raise RuntimeError(
         "No database password found.\n"
         "Set one of:\n"
@@ -79,6 +83,7 @@ def _get_password() -> str:
         "- DEV_DB_PASSWORD_FILE\n"
         "- DJANGO_DB_PASSWORD_FILE"
     )
+
 
 def _get_db_connection_kwargs() -> dict:
     """
@@ -115,54 +120,96 @@ def _get_db_connection_kwargs() -> dict:
     }
 
 
-def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
-    sql = """
-    SELECT
-        dai.aidataset_id        AS aidataset_id,
-        f.id                    AS frame_id,
-        f.relative_path         AS relative_path,
-        vf.frame_dir            AS frame_dir,
-        f.old_examination_id    AS old_examination_id,
-        vf.id                   AS video_id,
-        l.id                    AS label_id,
-        l.name                  AS label_name,
-        a.value                 AS value,
-        a.annotator             AS annotator
-    FROM endoreg_db_aidataset_image_annotations dai
-    JOIN endoreg_db_imageclassificationannotation a
-        ON a.id = dai.imageclassificationannotation_id
-    JOIN endoreg_db_frame f
-        ON f.id = a.frame_id
-    JOIN endoreg_db_videofile vf
-        ON vf.id = f.video_id
-    JOIN endoreg_db_label l
-        ON l.id = a.label_id
-    WHERE dai.aidataset_id = %s
-    """
+# TODO Making old_examination_id nullable in the DB schema would be ideal, but for now we can just treat it as optional in the code.
+def _postgres_column_exists(cur, table_name: str, column_name: str) -> bool:
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = %s
+              AND column_name = %s
+        )
+        """,
+        (table_name, column_name),
+    )
+    row = cur.fetchone()
+    return bool(row and row[0])
 
+
+# It will deals with both databases
+def load_annotations_from_postgres(dataset_id: int) -> list[dict]:
     rows: list[dict] = []
     conn_kwargs = _get_db_connection_kwargs()
 
     with psycopg.connect(**conn_kwargs) as conn:
         with conn.cursor() as cur:
+            has_old_examination_id = _postgres_column_exists(
+                cur,
+                "endoreg_db_frame",
+                "old_examination_id",
+            )
+
+            old_examination_expr = (
+                "f.old_examination_id" if has_old_examination_id else "NULL"
+            )
+
+            sql = f"""
+            SELECT
+                dai.aidataset_id        AS aidataset_id,
+                f.id                    AS frame_id,
+                f.relative_path         AS relative_path,
+                f.frame_number          AS frame_number,
+                f.timestamp             AS timestamp,
+                vf.frame_dir            AS frame_dir,
+                {old_examination_expr}  AS old_examination_id,
+                vf.id                   AS video_id,
+                vf.uuid                 AS video_uuid,
+                vf.processed_file       AS processed_file,
+                vf.fps                  AS video_fps,
+                l.id                    AS label_id,
+                l.name                  AS label_name,
+                a.id                    AS annotation_id,
+                a.value                 AS value,
+                a.annotator             AS annotator
+            FROM endoreg_db_aidataset_image_annotations dai
+            JOIN endoreg_db_imageclassificationannotation a
+                ON a.id = dai.imageclassificationannotation_id
+            JOIN endoreg_db_frame f
+                ON f.id = a.frame_id
+            JOIN endoreg_db_videofile vf
+                ON vf.id = f.video_id
+            JOIN endoreg_db_label l
+                ON l.id = a.label_id
+            WHERE dai.aidataset_id = %s
+            """
+
             cur.execute(sql, (dataset_id,))
             for row in cur.fetchall():
                 rows.append(
                     {
                         "dataset_id": row[0],
+                        "annotation_id": row[13],
                         "frame": {
                             "id": row[1],
                             "relative_path": row[2],
-                            "file_path": row[3],
-                            "old_examination_id": row[4],
-                            "video_id": row[5],
+                            "frame_number": row[3],
+                            "timestamp": row[4],
+                            "file_path": row[5],
+                            "frame_dir": row[5],
+                            "old_examination_id": row[6],
+                            "video_id": row[7],
+                            "video_uuid": row[8],
+                            "processed_file": row[9],
+                            "video_fps": row[10],
                         },
                         "label": {
-                            "id": row[6],
-                            "name": row[7],
+                            "id": row[11],
+                            "name": row[12],
                         },
-                        "value": row[8],
-                        "annotator": row[9],
+                        "value": row[14],
+                        "annotator": row[15],
                     }
                 )
 
@@ -226,8 +273,6 @@ def load_labelset_from_postgres(
     }
 
 
-import os
-
 def load_annotations(config, dataset_id: int) -> list[dict]:
     db_backend = os.getenv("DB_BACKEND", "postgres")
 
@@ -237,9 +282,6 @@ def load_annotations(config, dataset_id: int) -> list[dict]:
         return load_annotations_from_postgres(dataset_id)
     else:
         raise ValueError(f"Unsupported DB backend: {db_backend}")
-    
-import sqlite3
-from pathlib import Path
 
 
 def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
@@ -250,16 +292,22 @@ def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
 
     sql = """
     SELECT
-        dai.aidataset_id,
-        f.id,
-        f.relative_path,
-        vf.frame_dir,
-        f.old_examination_id,
-        vf.id,
-        l.id,
-        l.name,
-        a.value,
-        a.annotator
+        dai.aidataset_id        AS aidataset_id,
+        f.id                    AS frame_id,
+        f.relative_path         AS relative_path,
+        f.frame_number          AS frame_number,
+        f.timestamp             AS timestamp,
+        f.old_examination_id    AS old_examination_id,
+        vf.id                   AS video_id,
+        vf.uuid                 AS video_uuid,
+        vf.frame_dir            AS frame_dir,
+        vf.processed_file       AS processed_file,
+        vf.fps                  AS video_fps,
+        l.id                    AS label_id,
+        l.name                  AS label_name,
+        a.id                    AS annotation_id,
+        a.value                 AS value,
+        a.annotator             AS annotator
     FROM endoreg_db_aidataset_image_annotations dai
     JOIN endoreg_db_imageclassificationannotation a
         ON a.id = dai.imageclassificationannotation_id
@@ -283,19 +331,29 @@ def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
         rows.append(
             {
                 "dataset_id": row[0],
+                "annotation_id": row[13],
                 "frame": {
                     "id": row[1],
                     "relative_path": row[2],
-                    "file_path": row[3],
-                    "old_examination_id": row[4],
-                    "video_id": row[5],
+                    "frame_number": row[3],
+                    "timestamp": row[4],
+                    "old_examination_id": row[5],
+                    "video_id": row[6],
+                    "video_uuid": row[7],
+                    "file_path": row[8],
+                    "frame_dir": row[8],
+                    "processed_file": row[9],
+                    "video_fps": row[10],
                 },
                 "label": {
-                    "id": row[6],
-                    "name": row[7],
+                    "id": row[11],
+                    "name": row[12],
                 },
-                "value": row[8],
-                "annotator": row[9],
+                "annotation": {
+                    "id": row[13],
+                },
+                "value": row[14],
+                "annotator": row[15],
             }
         )
 

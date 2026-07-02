@@ -135,5 +135,5 @@ libs/lx-data-models/*
 # 🚫 OPTIONAL (uncomment if needed)
 # =========================================================
 # diagram/*.mmd
-uv.lock  
-devenv.lock 
+uv.lock
+devenv.lock

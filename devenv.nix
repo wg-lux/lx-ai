@@ -37,21 +37,45 @@ let
 
   baseEnv = {
     FRAME_DIR = config.secretspec.secrets.FRAME_DIR;
-  
+
+    TRAINING_CONFIG_PATH = config.secretspec.secrets.TRAINING_CONFIG_PATH;
+
+    LX_ANNOTATE_ENCRYPTED_DATA_DIR = config.secretspec.secrets.LX_ANNOTATE_ENCRYPTED_DATA_DIR;
+    DJANGO_DATA_DIR = config.secretspec.secrets.DJANGO_DATA_DIR;
+    STORAGE_DIR = config.secretspec.secrets.STORAGE_DIR;
+    PROTECTED_MEDIA_ROOT = config.secretspec.secrets.PROTECTED_MEDIA_ROOT;
+    FRAME_MATERIALIZATION_OUTPUT_ROOT = config.secretspec.secrets.FRAME_MATERIALIZATION_OUTPUT_ROOT;
+
+    TRAINING_ROOT = config.secretspec.secrets.TRAINING_ROOT;
+    CHECKPOINTS_DIR = config.secretspec.secrets.CHECKPOINTS_DIR;
+    RUNS_DIR = config.secretspec.secrets.RUNS_DIR;
+    BUCKET_SNAPSHOT_DIR = config.secretspec.secrets.BUCKET_SNAPSHOT_DIR;
+
+    BACKBONE_CHECKPOINT = config.secretspec.secrets.BACKBONE_CHECKPOINT;
+    BACKBONE_CHECKPOINT_URL = config.secretspec.secrets.BACKBONE_CHECKPOINT_URL;
+    SQLITE_DB_PATH = config.secretspec.secrets.SQLITE_DB_PATH;
+
+    LEGACY_IMAGE_DIR = config.secretspec.secrets.LEGACY_IMAGE_DIR;
+    LEGACY_JSONL_PATH = config.secretspec.secrets.LEGACY_JSONL_PATH;
+
+    CSV_DIR = config.secretspec.secrets.CSV_DIR;
+
+    FRAME_PATH_REMAP_SOURCE = config.secretspec.secrets.FRAME_PATH_REMAP_SOURCE;
+    FRAME_PATH_REMAP_TARGET = config.secretspec.secrets.FRAME_PATH_REMAP_TARGET;
+
     HOME_DIR = config.secretspec.secrets.HOME_DIR;
     WORKING_DIR = config.secretspec.secrets.WORKING_DIR;
     DATA_DIR = config.secretspec.secrets.DATA_DIR;
     CONF_DIR = config.secretspec.secrets.CONF_DIR;
 
-    STORAGE_DIR = config.secretspec.secrets.DATA_DIR;
-  
+
     DJANGO_ENV = config.secretspec.secrets.DJANGO_ENV;
     DJANGO_DEBUG = config.secretspec.secrets.DJANGO_DEBUG;
-  
+
     DJANGO_SETTINGS_MODULE = config.secretspec.secrets.DJANGO_SETTINGS_MODULE;
     DJANGO_SETTINGS_MODULE_DEVELOPMENT = config.secretspec.secrets.DJANGO_SETTINGS_MODULE_DEVELOPMENT;
     DJANGO_SETTINGS_MODULE_PRODUCTION = config.secretspec.secrets.DJANGO_SETTINGS_MODULE_PRODUCTION;
-  
+
     DJANGO_DB_ENGINE = config.secretspec.secrets.DJANGO_DB_ENGINE;
     DJANGO_DB_HOST = config.secretspec.secrets.DJANGO_DB_HOST;
     DJANGO_DB_PORT = config.secretspec.secrets.DJANGO_DB_PORT;
@@ -59,7 +83,8 @@ let
     DJANGO_DB_USER = config.secretspec.secrets.DJANGO_DB_USER;
     DJANGO_DB_PASSWORD_FILE = config.secretspec.secrets.DJANGO_DB_PASSWORD_FILE;
     DJANGO_DB_SSLMODE = config.secretspec.secrets.DJANGO_DB_SSLMODE;
-  
+
+
     LOG_LEVEL = config.secretspec.secrets.LOG_LEVEL;
 };
 
@@ -78,12 +103,12 @@ in
   packages = runtimePackages ++ buildInputs;
 
   env = baseEnv // {
-    
+
     # include runtimePackages as well so runtime native libs (e.g. zlib) are on LD_LIBRARY_PATH
     LD_LIBRARY_PATH =
       lib.makeLibraryPath (buildInputs ++ runtimePackages)
       + ":/run/opengl-driver/lib:/run/opengl-driver-32/lib";
-    
+
   };
 
   languages.python = {
@@ -103,10 +128,18 @@ in
         with pkgs; lib.makeLibraryPath (buildInputs ++ runtimePackages)
       }:/run/opengl-driver/lib:/run/opengl-driver-32/lib"
     '';
-    lxai_training.exec = "           
-    source .devenv/state/venv/bin/activate
-    secretspec run --provider env -- uv run python lx_ai/run_training.py
-";
+    prepare-assets.exec = ''
+      set -euo pipefail
+      source .devenv/state/venv/bin/activate
+      secretspec run --provider env -- uv run python lx_ai/scripts/prepare_runtime_assets.py
+    '';
+
+    lxai_training.exec = ''
+      set -euo pipefail
+      source .devenv/state/venv/bin/activate
+      secretspec run --provider env -- uv run python lx_ai/scripts/prepare_runtime_assets.py
+      secretspec run --provider env -- uv run python lx_ai/run_training.py
+    '';
 
     pyshell.exec = "uv run python manage.py shell";
 
@@ -144,13 +177,35 @@ in
       set -a
       source .env
       set +a
-    
+
       export DJANGO_ENV=''${DJANGO_ENV:-development}
       export DATA_DIR=''${DATA_DIR:-data}
       export CONF_DIR=''${CONF_DIR:-conf}
       export FRAME_DIR=''${FRAME_DIR:-data/frames}
       export STORAGE_DIR=''${STORAGE_DIR:-data}
-    
+
+      export TRAINING_CONFIG_PATH=''${TRAINING_CONFIG_PATH:-lx_ai/ai_model_config/train_sandbox_postgres.yaml}
+
+      export TRAINING_ROOT=''${TRAINING_ROOT:-data/model_training}
+      export CHECKPOINTS_DIR=''${CHECKPOINTS_DIR:-data/model_training/checkpoints}
+      export RUNS_DIR=''${RUNS_DIR:-data/model_training/runs}
+      export BUCKET_SNAPSHOT_DIR=''${BUCKET_SNAPSHOT_DIR:-data/model_training/buckets}
+
+      export BACKBONE_CHECKPOINT=''${BACKBONE_CHECKPOINT:-data/model_training/checkpoints/RN50_GastroNet-1M_DINOv1.pth}
+      export BACKBONE_CHECKPOINT_URL=''${BACKBONE_CHECKPOINT_URL:-}
+
+      export SQLITE_DB_PATH=''${SQLITE_DB_PATH:-dev_db.sqlite}
+
+      export LEGACY_IMAGE_DIR=''${LEGACY_IMAGE_DIR:-data/legacy_images/images}
+      export LEGACY_JSONL_PATH=''${LEGACY_JSONL_PATH:-data/legacy_images/legacy_img_dicts.jsonl}
+
+      export FRAME_MATERIALIZATION_OUTPUT_ROOT=''${FRAME_MATERIALIZATION_OUTPUT_ROOT:-data/frames/generated}
+
+      export CSV_DIR=''${CSV_DIR:-data/import/csv}
+
+      export FRAME_PATH_REMAP_SOURCE=''${FRAME_PATH_REMAP_SOURCE:-}
+      export FRAME_PATH_REMAP_TARGET=''${FRAME_PATH_REMAP_TARGET:-}
+
       echo ".env (dev) loaded"
     elif [ -f ".env.systemd" ]; then
       set -a

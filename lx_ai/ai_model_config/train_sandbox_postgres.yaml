@@ -6,7 +6,7 @@ dataset_uuid: sandbox_ds
 # DATA SOURCE
 # ------------------------------
 data_source: postgres #jsonl or postgres
-dataset_ids: [1,2] #When new dataset comes:dataset_ids: [1, 2]
+dataset_ids: [1] #When new dataset comes:dataset_ids: [1, 2]
 
 labelset_id: 5
 labelset_version_to_train: 3
@@ -47,7 +47,7 @@ treat_unlabeled_as_negative: false
 
 # ------------------------------
 # MODEL
-# Model options: 
+# Model options:
 # ------------------------------
 
 # ------------------------------
@@ -73,7 +73,7 @@ freeze_backbone: true
 # ------------------------------
 # TRAINING
 # ------------------------------
-num_epochs: 2
+num_epochs: 1
 batch_size: 3
 
 #val_split: 0.1
@@ -97,3 +97,31 @@ bucket_policy:
   test_buckets: [4]
 
 save_bucket_snapshot: true
+
+temporal_sampling:
+  enabled: true
+
+  # Maximum selected frames from one continuous temporal/label sequence.
+  max_frames_per_sequence: 1
+
+  # Minimum distance between selected frames.
+  # At 50 FPS, 50 frames = 1 second.
+  min_distance_frames: 300
+
+  # If two annotated frames are farther apart than this,
+  # they are treated as different sequences.
+  # At 50 FPS, 250 frames = 5 seconds, # 999999999 just to get less frames for sandboxing ,need to change in production and also for testing
+  sequence_gap_frames: 999999999
+
+  # If true, a changed positive-label set starts a new sequence.
+  split_on_label_change: true
+
+  # If true, prioritize frames with rare positive labels and more positive labels.
+  rare_label_aware: true
+
+frame_materialization:
+  enabled: true
+  output_root: $FRAME_MATERIALIZATION_OUTPUT_ROOT
+  fps: 50.0
+  ext: jpg
+  overwrite: false

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
 import os
 
-from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _read_secret_file(path: Path, label: str) -> str:
@@ -54,16 +53,17 @@ class AppConfig(BaseSettings):
     def apply_secret_files(self) -> "AppConfig":
         if self.db_password_file and not self.db_password:
             path = Path(self.db_password_file)
-    
+
             # Same behavior as lx-annotate
             if path.exists():
                 self.db_password = _read_secret_file(path, "db_password")
-    
+
         return self
 
 
 def load_config(env_file: Path | None = None) -> AppConfig:
     return AppConfig()
+
 
 @model_validator(mode="after")
 def debug_print(self) -> "AppConfig":
@@ -77,5 +77,6 @@ def debug_print(self) -> "AppConfig":
     print(f"DB PASSWORD FILE: {self.db_password_file}")
     print(f"DB PASSWORD LOADED: {bool(self.db_password)}")
     return self
+
 
 db_backend: str = os.getenv("DB_BACKEND", "postgres")
