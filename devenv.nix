@@ -121,6 +121,10 @@ in
     };
   };
 
+  languages.rust = {
+    enable = true;
+  };
+
   scripts = {
     env-setup.exec = ''
       # Ensure runtimePackages are included in the library path here too
