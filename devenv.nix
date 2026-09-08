@@ -94,8 +94,6 @@ let
 
 in
 {
-  secretspec.provider = "env";
-
   # A dotenv file was found, while dotenv integration is currently not enabled.
   dotenv.enable = false;
   dotenv.disableHint = true;
