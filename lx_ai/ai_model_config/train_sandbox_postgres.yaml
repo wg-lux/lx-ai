@@ -9,7 +9,7 @@ data_source: postgres #jsonl or postgres
 dataset_ids: [1] #When new dataset comes:dataset_ids: [1, 2]
 
 labelset_id: 5
-labelset_version_to_train: 3
+labelset_version_to_train: 1
 
 # EXACT endoreg-db semantics:
 # ===============================
