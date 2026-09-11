@@ -73,8 +73,8 @@ freeze_backbone: true
 # ------------------------------
 # TRAINING
 # ------------------------------
-num_epochs: 1
-batch_size: 3
+num_epochs: 30
+batch_size: 8
 
 #val_split: 0.1
 #test_split: 0.1
@@ -85,7 +85,7 @@ gamma_focal: 2.0
 alpha_focal: 0.25
 
 use_scheduler: true
-warmup_epochs: 2
+warmup_epochs: 3
 min_lr: 1.0e-6
 
 device: cuda
