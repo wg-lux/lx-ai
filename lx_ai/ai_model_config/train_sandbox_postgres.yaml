@@ -102,7 +102,7 @@ temporal_sampling:
   enabled: true
 
   # Maximum selected frames from one continuous temporal/label sequence.
-  max_frames_per_sequence: 0
+  max_frames_per_sequence: 10
 
   # Minimum distance between selected frames.
   # At 50 FPS, 50 frames = 1 second.
