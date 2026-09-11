@@ -110,7 +110,9 @@ class TestBucketLogic:
         with pytest.raises(ZeroDivisionError):
             compute_bucket("frame:1", 0)
 
-    def test_compute_bucket_negative_num_buckets_documents_current_behavior(self) -> None:
+    def test_compute_bucket_negative_num_buckets_documents_current_behavior(
+        self,
+    ) -> None:
         # checks current behavior for negative num_buckets
         # this is not desired for production but documents current function behavior
         bucket = compute_bucket("frame:1", -5)

@@ -18,9 +18,15 @@ def load_json(path):
 # 2️⃣ Load different runs
 # -------------------------------------------------------
 # You can add as many runs as you want here.
-run1 = load_json("data/model_training/buckets/20260223_091917/all_bucket_assignments.json")
-run2 = load_json("data/model_training/buckets/20260223_093045/all_bucket_assignments.json")
-run3 = load_json("data/model_training/buckets/20260223_112622/all_bucket_assignments.json")
+run1 = load_json(
+    "data/model_training/buckets/20260223_091917/all_bucket_assignments.json"
+)
+run2 = load_json(
+    "data/model_training/buckets/20260223_093045/all_bucket_assignments.json"
+)
+run3 = load_json(
+    "data/model_training/buckets/20260223_112622/all_bucket_assignments.json"
+)
 
 
 # -------------------------------------------------------

@@ -66,69 +66,90 @@ def fetch_source_video_row(source_video_id: int, copy_cols: list[str]):
 
 def fetch_exam_groups(source_video_id: int):
     with connection.cursor() as cursor:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT old_examination_id, COUNT(*) AS num_frames
             FROM endoreg_db_frame
             WHERE video_id = %s
               AND old_examination_id IS NOT NULL
             GROUP BY old_examination_id
             ORDER BY old_examination_id
-        """, [source_video_id])
+        """,
+            [source_video_id],
+        )
         return cursor.fetchall()
 
 
 def fetch_null_exam_count(source_video_id: int):
     with connection.cursor() as cursor:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*)
             FROM endoreg_db_frame
             WHERE video_id = %s
               AND old_examination_id IS NULL
-        """, [source_video_id])
+        """,
+            [source_video_id],
+        )
         return cursor.fetchone()[0]
 
 
 def fetch_total_frame_count(source_video_id: int):
     with connection.cursor() as cursor:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*)
             FROM endoreg_db_frame
             WHERE video_id = %s
-        """, [source_video_id])
+        """,
+            [source_video_id],
+        )
         return cursor.fetchone()[0]
 
 
 def fetch_video1_summary(source_video_id: int):
     with connection.cursor() as cursor:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(DISTINCT old_examination_id)
             FROM endoreg_db_frame
             WHERE video_id = %s
               AND old_examination_id IS NOT NULL
-        """, [source_video_id])
+        """,
+            [source_video_id],
+        )
         unique_group_count = cursor.fetchone()[0]
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*)
             FROM endoreg_db_frame
             WHERE video_id = %s
               AND old_examination_id IS NOT NULL
-        """, [source_video_id])
+        """,
+            [source_video_id],
+        )
         frames_with_old_exam = cursor.fetchone()[0]
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*)
             FROM endoreg_db_frame
             WHERE video_id = %s
               AND old_examination_id IS NULL
-        """, [source_video_id])
+        """,
+            [source_video_id],
+        )
         frames_without_old_exam = cursor.fetchone()[0]
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*)
             FROM endoreg_db_frame
             WHERE video_id = %s
-        """, [source_video_id])
+        """,
+            [source_video_id],
+        )
         total_frames = cursor.fetchone()[0]
 
     return {
@@ -150,11 +171,14 @@ def validate_after_split(source_video_id: int):
         """)
         total_frames_global = cursor.fetchone()[0]
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT COUNT(*)
             FROM endoreg_db_frame
             WHERE video_id = %s
-        """, [source_video_id])
+        """,
+            [source_video_id],
+        )
         remaining_on_source = cursor.fetchone()[0]
 
         cursor.execute("""
@@ -272,12 +296,15 @@ def run():
             )
 
             with connection.cursor() as cursor:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE endoreg_db_frame
                     SET video_id = %s
                     WHERE video_id = %s
                       AND old_examination_id = %s
-                """, [new_video_id, SOURCE_VIDEO_ID, old_exam_id])
+                """,
+                    [new_video_id, SOURCE_VIDEO_ID, old_exam_id],
+                )
 
             created_count += 1
             moved_count += num_frames

@@ -317,4 +317,4 @@ def test_focal_loss_all_mask_zero_returns_zero_loss() -> None:
 
     assert torch.isclose(loss, torch.tensor(0.0), atol=1e-6)
 
-    #run pytest tests/ai_model/test_losses.py -q --no-cov
+    # run pytest tests/ai_model/test_losses.py -q --no-cov

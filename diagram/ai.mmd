@@ -3,7 +3,7 @@ flowchart TD
     A[Initialize Model]
 
     A --> D1["Load ResNet50 (weights==none)"]
-  
+
     D1 -->D3[Load GastroNet Pretrained Weights]
 
     D3 --> E[Remove Final Fully Connected Layer]
@@ -12,9 +12,9 @@ flowchart TD
     F --> G[Freeze Backbone]
 
     G -->H[Backbone requires_grad False]
-    
+
     H --> J[Compute Class Weights]
-    
+
     J --> K[Initialize AdamW Optimizer]
     K --> L{Use Scheduler}
 

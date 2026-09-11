@@ -8,8 +8,6 @@ from lx_ai.utils import db_loader_for_model_input as db_loader
 
 
 class TestDbLoaderEnvironment:
-
-
     def _clean_password_env(self, monkeypatch) -> None:
         # clears all password env vars so tests do not depend on developer or CI shell
         for key in (
@@ -53,7 +51,9 @@ class TestDbLoaderEnvironment:
 
         assert db_loader._get_password() == "local-secret"
 
-    def test_get_password_uses_django_password_when_dev_missing(self, monkeypatch) -> None:
+    def test_get_password_uses_django_password_when_dev_missing(
+        self, monkeypatch
+    ) -> None:
         # checks DJANGO_DB_PASSWORD is used when DEV_DB_PASSWORD is missing
         monkeypatch.delenv("DEV_DB_PASSWORD", raising=False)
         monkeypatch.setenv("DJANGO_DB_PASSWORD", "service-secret")
@@ -145,7 +145,6 @@ class TestDbLoaderEnvironment:
         assert kwargs["user"] == "service_user"
         assert kwargs["password"] == "service_password"
         assert kwargs["sslmode"] == "prefer"
-
 
     def test_get_db_connection_kwargs_rejects_invalid_port(self, monkeypatch) -> None:
         # checks invalid database port raises clear error

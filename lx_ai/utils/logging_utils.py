@@ -88,7 +88,11 @@ def kv(label: str, value: object, width: int = 22) -> None:
     Key-value line with aligned label.
     """
     label_txt = f"{label:<{width}}"
-    print(f"{_style(label_txt, _MAGENTA)}: {value}" if _supports_color() else f"{label_txt}: {value}")
+    print(
+        f"{_style(label_txt, _MAGENTA)}: {value}"
+        if _supports_color()
+        else f"{label_txt}: {value}"
+    )
 
 
 def info(text: str) -> None:
