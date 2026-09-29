@@ -144,7 +144,7 @@ environments = [
 
 conflicts = [
   [
-    { package = "endoreg-db", extra = "dev" },
+    { package = "endoreg-db" },
     { package = "lx-dtypes", extra = "dev" },
   ],
 ]
