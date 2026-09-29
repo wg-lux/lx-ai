@@ -142,6 +142,13 @@ environments = [
 
 ]
 
+conflicts = [
+  [
+    { package = "endoreg-db", extra = "dev" },
+    { package = "lx-dtypes", extra = "dev" },
+  ],
+]
+
 [tool.uv.workspace]
 members = [
     "libs/lx-data-models",

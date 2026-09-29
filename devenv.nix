@@ -90,7 +90,7 @@ let
 
   _module.args.buildInputs = baseBuildInputs;
 
-  SYNC_CMD = "uv sync --active --extra dev --extra docs";
+  SYNC_CMD = "uv sync --active";
 
 in
 {
