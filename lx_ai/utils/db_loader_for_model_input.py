@@ -283,6 +283,13 @@ def load_annotations(config, dataset_id: int) -> list[dict]:
     else:
         raise ValueError(f"Unsupported DB backend: {db_backend}")
 
+def _sqlite_column_exists(
+    cursor: sqlite3.Cursor,
+    table_name: str,
+    column_name: str,
+) -> bool:
+    cursor.execute(f'PRAGMA table_info("{table_name}")')
+    return any(row[1] == column_name for row in cursor.fetchall())
 
 def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
     db_path = Path(os.getenv("SQLITE_DB_PATH", "dev_db.sqlite")).expanduser()
@@ -290,72 +297,89 @@ def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
     if not db_path.exists():
         raise FileNotFoundError(f"SQLite DB not found: {db_path}")
 
-    sql = """
-    SELECT
-        dai.aidataset_id        AS aidataset_id,
-        f.id                    AS frame_id,
-        f.relative_path         AS relative_path,
-        f.frame_number          AS frame_number,
-        f.timestamp             AS timestamp,
-        f.old_examination_id    AS old_examination_id,
-        vf.id                   AS video_id,
-        vf.uuid                 AS video_uuid,
-        vf.frame_dir            AS frame_dir,
-        vf.processed_file       AS processed_file,
-        vf.fps                  AS video_fps,
-        l.id                    AS label_id,
-        l.name                  AS label_name,
-        a.id                    AS annotation_id,
-        a.value                 AS value,
-        a.annotator             AS annotator
-    FROM endoreg_db_aidataset_image_annotations dai
-    JOIN endoreg_db_imageclassificationannotation a
-        ON a.id = dai.imageclassificationannotation_id
-    JOIN endoreg_db_frame f
-        ON f.id = a.frame_id
-    JOIN endoreg_db_videofile vf
-        ON vf.id = f.video_id
-    JOIN endoreg_db_label l
-        ON l.id = a.label_id
-    WHERE dai.aidataset_id = ?
-    """
-
     rows: list[dict] = []
 
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    cursor.execute(sql, (dataset_id,))
-
-    for row in cursor.fetchall():
-        rows.append(
-            {
-                "dataset_id": row[0],
-                "annotation_id": row[13],
-                "frame": {
-                    "id": row[1],
-                    "relative_path": row[2],
-                    "frame_number": row[3],
-                    "timestamp": row[4],
-                    "old_examination_id": row[5],
-                    "video_id": row[6],
-                    "video_uuid": row[7],
-                    "file_path": row[8],
-                    "frame_dir": row[8],
-                    "processed_file": row[9],
-                    "video_fps": row[10],
-                },
-                "label": {
-                    "id": row[11],
-                    "name": row[12],
-                },
-                "annotation": {
-                    "id": row[13],
-                },
-                "value": row[14],
-                "annotator": row[15],
-            }
+        # Legacy compatibility:
+        # old_examination_id is not part of the current EndoReg Frame model,
+        # but some older databases may still contain the column.
+        has_old_examination_id = _sqlite_column_exists(
+            cursor,
+            "endoreg_db_frame",
+            "old_examination_id",
         )
 
-    conn.close()
+        old_examination_expr = (
+            "f.old_examination_id"
+            if has_old_examination_id
+            else "NULL"
+        )
+
+        sql = f"""
+        SELECT
+            dai.aidataset_id        AS aidataset_id,
+            f.id                    AS frame_id,
+            f.relative_path         AS relative_path,
+            f.frame_number          AS frame_number,
+            f.timestamp             AS timestamp,
+            {old_examination_expr}  AS old_examination_id,
+            vf.id                   AS video_id,
+            vf.uuid                 AS video_uuid,
+            vf.frame_dir            AS frame_dir,
+            vf.processed_file       AS processed_file,
+            vf.fps                  AS video_fps,
+            l.id                    AS label_id,
+            l.name                  AS label_name,
+            a.id                    AS annotation_id,
+            a.value                 AS value,
+            a.annotator             AS annotator
+        FROM endoreg_db_aidataset_image_annotations dai
+        JOIN endoreg_db_imageclassificationannotation a
+            ON a.id = dai.imageclassificationannotation_id
+        JOIN endoreg_db_frame f
+            ON f.id = a.frame_id
+        JOIN endoreg_db_videofile vf
+            ON vf.id = f.video_id
+        JOIN endoreg_db_label l
+            ON l.id = a.label_id
+        WHERE dai.aidataset_id = ?
+        """
+
+        cursor.execute(sql, (dataset_id,))
+
+        for row in cursor.fetchall():
+            rows.append(
+                {
+                    "dataset_id": row[0],
+                    "annotation_id": row[13],
+                    "frame": {
+                        "id": row[1],
+                        "relative_path": row[2],
+                        "frame_number": row[3],
+                        "timestamp": row[4],
+                        "old_examination_id": row[5],
+                        "video_id": row[6],
+                        "video_uuid": row[7],
+                        "file_path": row[8],
+                        "frame_dir": row[8],
+                        "processed_file": row[9],
+                        "video_fps": row[10],
+                    },
+                    "label": {
+                        "id": row[11],
+                        "name": row[12],
+                    },
+                    "annotation": {
+                        "id": row[13],
+                    },
+                    "value": row[14],
+                    "annotator": row[15],
+                }
+            )
+    finally:
+        conn.close()
+
     return rows
