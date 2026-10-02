@@ -198,7 +198,6 @@ class TestDataLoaderForModelTraining:
         assert ds["label_masks"] == [[1, 1]]
         assert ds["annotators_per_frame"] == [["ann_a", "ann_b"]]
 
-    
     def test_build_image_multilabel_dataset_drops_labels_with_zero_positive_samples(
         self,
         tmp_path: Path,
@@ -206,7 +205,7 @@ class TestDataLoaderForModelTraining:
         # checks labels with no positive samples are removed by current builder logic
         self._touch_image(tmp_path / "frame_1.jpg")
         self._touch_image(tmp_path / "frame_2.jpg")
-    
+
         annotations = [
             {
                 "dataset_id": 1,
@@ -235,14 +234,14 @@ class TestDataLoaderForModelTraining:
                 "annotator": "ann_b",
             },
         ]
-    
+
         ds = build_image_multilabel_dataset(
             dataset_uuid="test_ds",
             annotations=annotations,
             labelset=self._labelset(),
             treat_unlabeled_as_negative=False,
         )
-    
+
         assert [label["name"] for label in ds["labels"]] == ["blood"]
         assert ds["label_vectors"] == [
             [None],
@@ -252,6 +251,7 @@ class TestDataLoaderForModelTraining:
             [0],
             [1],
         ]
+
     def test_build_image_multilabel_dataset_rejects_empty_annotations(
         self,
     ) -> None:
@@ -270,7 +270,10 @@ class TestDataLoaderForModelTraining:
     ) -> None:
         # checks missing image file raises file not found error
         annotations = self._annotations(tmp_path)
-        Path(annotations[0]["frame"]["file_path"], annotations[0]["frame"]["relative_path"]).unlink()
+        Path(
+            annotations[0]["frame"]["file_path"],
+            annotations[0]["frame"]["relative_path"],
+        ).unlink()
 
         with pytest.raises(FileNotFoundError, match="Image file not found"):
             build_image_multilabel_dataset(

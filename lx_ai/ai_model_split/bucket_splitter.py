@@ -4,10 +4,11 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 from lx_ai.utils.logging_utils import subsection
 from lx_ai.ai_model_split.bucket_hash import compute_bucket_id, compute_bucket_key
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
+
 
 class BucketSplitPolicy(AppBaseModel):
     """
@@ -20,6 +21,7 @@ class BucketSplitPolicy(AppBaseModel):
     - all other buckets are training
     - strict validation: in range, no overlaps, cover all buckets exactly once
     """
+
     num_buckets: int = Field(..., ge=3)
     validation_buckets: List[int] = Field(..., min_length=1)
     test_buckets: List[int] = Field(..., min_length=1)
@@ -94,14 +96,13 @@ def split_indices_by_bucket_policy(
     oldexamid_hash_count = 0
     frameid_hash_count = 0
 
-
     for i, (fid, exam_id) in enumerate(zip(frame_ids, old_examination_ids)):
-        #key = compute_bucket_key(frame_id=int(fid), old_examination_id=exam_id)
+        # key = compute_bucket_key(frame_id=int(fid), old_examination_id=exam_id)
         if exam_id is not None:
             oldexamid_hash_count += 1
         else:
             frameid_hash_count += 1
-        
+
         key = compute_bucket_key(frame_id=int(fid), old_examination_id=exam_id)
         b = compute_bucket_id(key=key, num_buckets=int(policy.num_buckets))
         bucket_ids.append(b)

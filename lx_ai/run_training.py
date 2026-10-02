@@ -1,5 +1,9 @@
-from pathlib import Path
+from __future__ import annotations
+
 import os
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 # Ensure Django settings module exists before setup
 os.environ.setdefault(
@@ -11,40 +15,55 @@ os.environ.setdefault(
 )
 
 import django
+
 django.setup()
 
-from django.conf import settings
-from lx_ai.utils.path_diagnostics import print_runtime_path_diagnostics
-
-from lx_ai.training.bucket_logic import build_bucket_key, compute_bucket
-from lx_ai.training.bucket_snapshot import save_bucket_snapshot
-from lx_ai.ai_model_config.config import TrainingConfig
-from lx_ai.ai_model_training.trainer_gastronet_multilabel import (
-    train_gastronet_multilabel,
+from lx_ai.ai_model_config.config import TrainingConfig  # noqa: E402
+from lx_ai.utils.logging_utils import kv, section, subsection  # noqa: E402
+from lx_ai.utils.path_diagnostics import (  # noqa: E402
+    print_runtime_path_diagnostics,
+    validate_runtime_paths_for_training,
 )
-from lx_ai.utils.logging_utils import section, subsection, kv
-print("\n")
-#print("Using database config:", settings.DATABASES)
-#print("Data dir:", settings.DATA_DIR)
-#print("Frame dir:", settings.FRAME_DIR)
 
 
-def main() -> None:
+TrainFunction = Callable[[TrainingConfig], dict[str, Any]]
 
-    print_runtime_path_diagnostics()
 
-    config_path = Path(
+def _load_train_function() -> TrainFunction:
+    """
+    Import trainer lazily.
+
+    This keeps run_training import lightweight for diagnostics and tests.
+    Production behavior remains the same because main() still loads the real trainer
+    when no test trainer is provided.
+    """
+    from lx_ai.ai_model_training.trainer_gastronet_multilabel import (
+        train_gastronet_multilabel,
+    )
+
+    return train_gastronet_multilabel
+
+
+def main(train_fn: TrainFunction | None = None) -> None:
+    training_config_path = Path(
         os.getenv(
             "TRAINING_CONFIG_PATH",
             "lx_ai/ai_model_config/train_sandbox_postgres.yaml",
         )
-    ).expanduser()
-    
-    cfg = TrainingConfig.from_yaml_file(config_path)
-        
+    )
+
+    print_runtime_path_diagnostics()
+
+    cfg = TrainingConfig.from_yaml_file(training_config_path)
+
+    validate_runtime_paths_for_training(cfg)
+
+    if train_fn is None:
+        train_fn = _load_train_function()
 
     section("TRAINING START")
 
+    # TODO: consider logging more
     subsection("CONFIG")
     kv("Dataset UUID", cfg.dataset_uuid)
     kv("Data source", cfg.data_source)
@@ -57,7 +76,7 @@ def main() -> None:
     kv("Backbone checkpoint", cfg.backbone_checkpoint)
     kv("Total buckets", cfg.bucket_policy.num_buckets)
 
-    out = train_gastronet_multilabel(cfg)
+    out = train_fn(cfg)
 
     subsection("ARTIFACTS")
     kv("Model saved to", out["model_path"])

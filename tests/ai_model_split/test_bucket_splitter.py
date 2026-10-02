@@ -63,7 +63,9 @@ def test_bucket_split_policy_rejects_too_few_buckets() -> None:
 
 def test_bucket_split_policy_rejects_multiple_validation_buckets() -> None:
     # checks only one validation bucket is allowed
-    with pytest.raises(ValidationError, match="validation_buckets must contain exactly one"):
+    with pytest.raises(
+        ValidationError, match="validation_buckets must contain exactly one"
+    ):
         BucketSplitPolicy(
             num_buckets=5,
             validation_buckets=[2, 3],
@@ -81,9 +83,13 @@ def test_bucket_split_policy_rejects_multiple_test_buckets() -> None:
         )
 
 
-def test_bucket_split_policy_rejects_duplicate_validation_bucket_list_as_multiple_buckets() -> None:
+def test_bucket_split_policy_rejects_duplicate_validation_bucket_list_as_multiple_buckets() -> (
+    None
+):
     # checks duplicate validation bucket list is rejected because only one validation bucket is allowed
-    with pytest.raises(ValidationError, match="validation_buckets must contain exactly one"):
+    with pytest.raises(
+        ValidationError, match="validation_buckets must contain exactly one"
+    ):
         BucketSplitPolicy(
             num_buckets=5,
             validation_buckets=[3, 3],
@@ -91,7 +97,9 @@ def test_bucket_split_policy_rejects_duplicate_validation_bucket_list_as_multipl
         )
 
 
-def test_bucket_split_policy_rejects_duplicate_test_bucket_list_as_multiple_buckets() -> None:
+def test_bucket_split_policy_rejects_duplicate_test_bucket_list_as_multiple_buckets() -> (
+    None
+):
     # checks duplicate test bucket list is rejected because only one test bucket is allowed
     with pytest.raises(ValidationError, match="test_buckets must contain exactly one"):
         BucketSplitPolicy(
@@ -103,7 +111,9 @@ def test_bucket_split_policy_rejects_duplicate_test_bucket_list_as_multiple_buck
 
 def test_bucket_split_policy_rejects_out_of_range_validation_bucket() -> None:
     # checks validation bucket id must be inside bucket range
-    with pytest.raises(ValidationError, match="validation_buckets contains out-of-range"):
+    with pytest.raises(
+        ValidationError, match="validation_buckets contains out-of-range"
+    ):
         BucketSplitPolicy(
             num_buckets=5,
             validation_buckets=[5],

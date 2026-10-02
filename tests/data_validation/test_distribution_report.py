@@ -200,7 +200,9 @@ class TestDistributionReport:
             "max_frames_per_exam",
         ]
 
-    def test_print_data_validation_report_to_console(self, tmp_path: Path, capsys) -> None:
+    def test_print_data_validation_report_to_console(
+        self, tmp_path: Path, capsys
+    ) -> None:
         # checks console printer outputs report sections
         data = self._dataset()
 

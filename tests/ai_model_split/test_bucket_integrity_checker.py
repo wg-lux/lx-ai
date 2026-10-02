@@ -133,7 +133,9 @@ def test_bucket_integrity_detects_exam_conflict_when_frame_ids_are_unique() -> N
         )
 
 
-def test_bucket_integrity_detects_video_conflict_when_frame_and_exam_are_valid() -> None:
+def test_bucket_integrity_detects_video_conflict_when_frame_and_exam_are_valid() -> (
+    None
+):
     # checks video conflict is detected after frame and exam checks pass
     with pytest.raises(RuntimeError, match="Video bucket integrity violation"):
         verify_bucket_integrity(
@@ -142,4 +144,3 @@ def test_bucket_integrity_detects_video_conflict_when_frame_and_exam_are_valid()
             bucket_ids=[0, 0, 2],
             video_ids=[100, 100, 100],
         )
-        

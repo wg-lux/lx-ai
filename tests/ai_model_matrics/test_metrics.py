@@ -301,7 +301,9 @@ def test_pos_only_metrics_per_label_returns_one_row_per_label() -> None:
     assert result["per_label"][1]["recall_pos"] == pytest.approx(1.0, abs=1e-5)
 
 
-def test_pos_only_metrics_per_label_returns_none_when_label_has_no_positive_support() -> None:
+def test_pos_only_metrics_per_label_returns_none_when_label_has_no_positive_support() -> (
+    None
+):
     # checks per label positives only metric returns None when label has no known positives
     logits = torch.zeros((2, 2), dtype=torch.float32)
     targets = torch.tensor(

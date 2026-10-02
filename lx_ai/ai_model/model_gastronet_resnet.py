@@ -5,11 +5,14 @@ from pathlib import Path
 from typing import Optional, TypedDict
 
 import torch
-from pydantic import ConfigDict, Field, field_validator, model_validator
 from torch import nn
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
-from lx_ai.ai_model.model_backbones import MultiLabelBackboneHead, create_multilabel_model
+from lx_ai.ai_model.model_backbones import (
+    MultiLabelBackboneHead,
+    create_multilabel_model,
+)
 
 
 # -----------------------------------------------------------------------------
@@ -62,7 +65,9 @@ class GastroNetResNet50Spec(AppBaseModel):
     def to_ddict(self) -> GastroNetResNetSpecDataDict:
         return self.ddict(
             num_labels=self.num_labels,
-            backbone_checkpoint=str(self.backbone_checkpoint) if self.backbone_checkpoint else None,
+            backbone_checkpoint=str(self.backbone_checkpoint)
+            if self.backbone_checkpoint
+            else None,
             freeze_backbone=self.freeze_backbone,
         )
 

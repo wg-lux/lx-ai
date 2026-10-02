@@ -27,7 +27,7 @@ from endoreg_db.models import (
 )
 
 
-#CSV_DIR = Path("/home/admin/csv")
+# CSV_DIR = Path("/home/admin/csv")
 CSV_DIR = Path(os.getenv("CSV_DIR", "data/import/csv")).expanduser()
 ANNOTATION_CSV = CSV_DIR / "01_annotation.csv"
 FRAME_CSV = CSV_DIR / "02_frame.csv"
@@ -92,6 +92,7 @@ def _require_file(path: Path) -> None:
     if not path.is_file():
         raise FileNotFoundError(f"Missing CSV file: {path}")
 
+
 def _fk_if_exists(Model, raw_value: str | None) -> Optional[int]:
     value = _as_int_or_none(raw_value)
     if value is None:
@@ -104,6 +105,7 @@ def _required_fk_with_fallback(Model, raw_value: str | None, fallback_id: int) -
     if value is not None and Model.objects.filter(id=value).exists():
         return value
     return fallback_id
+
 
 @transaction.atomic
 def run() -> None:
@@ -157,19 +159,31 @@ def run() -> None:
                 suffix=_as_str_or_none(row.get("suffix")),
                 sequences=_as_json_text(row.get("sequences"), {}),
                 date=_as_date_or_none(row.get("date")),
-                meta=_as_json_text(row.get("meta"), None) if _as_str_or_none(row.get("meta")) else None,
+                meta=_as_json_text(row.get("meta"), None)
+                if _as_str_or_none(row.get("meta"))
+                else None,
                 date_created=_as_datetime_or_now(row.get("date_created")),
                 date_modified=_as_datetime_or_now(row.get("date_modified")),
                 ai_model_meta_id=_fk_if_exists(ModelMeta, row.get("ai_model_meta_id")),
-                center_id=_required_fk_with_fallback(Center, row.get("center_id"), fallback_id=1),
-                examination_id=_fk_if_exists(PatientExamination, row.get("examination_id")),
+                center_id=_required_fk_with_fallback(
+                    Center, row.get("center_id"), fallback_id=1
+                ),
+                examination_id=_fk_if_exists(
+                    PatientExamination, row.get("examination_id")
+                ),
                 patient_id=_fk_if_exists(Patient, row.get("patient_id")),
                 processor_id=_fk_if_exists(EndoscopyProcessor, row.get("processor_id")),
-                sensitive_meta_id=_fk_if_exists(SensitiveMeta, row.get("sensitive_meta_id")),
-                import_meta_id=_fk_if_exists(VideoImportMeta, row.get("import_meta_id")),
+                sensitive_meta_id=_fk_if_exists(
+                    SensitiveMeta, row.get("sensitive_meta_id")
+                ),
+                import_meta_id=_fk_if_exists(
+                    VideoImportMeta, row.get("import_meta_id")
+                ),
                 video_meta_id=_fk_if_exists(VideoMeta, row.get("video_meta_id")),
                 state_id=_fk_if_exists(VideoState, row.get("state_id")),
-                export_segments_by_video=_as_bool(row.get("export_segments_by_video"), default=False),
+                export_segments_by_video=_as_bool(
+                    row.get("export_segments_by_video"), default=False
+                ),
                 uuid=row["uuid"].replace("-", "").strip(),
             )
 
@@ -199,7 +213,7 @@ def run() -> None:
                 frame_number=int(row["frame_number"]),
                 relative_path=row["relative_path"].strip(),
                 timestamp=_as_float_or_none(row.get("timestamp")),
-                #old_examination_id=_as_int_or_none(row.get("old_examination_id")),
+                # old_examination_id=_as_int_or_none(row.get("old_examination_id")),
                 is_extracted=_as_bool(row.get("is_extracted"), default=False),
                 video_id=video_id_map[old_video_id],
             )
@@ -232,7 +246,9 @@ def run() -> None:
                 date_created=_as_datetime_or_now(row.get("date_created")),
                 date_modified=_as_datetime_or_now(row.get("date_modified")),
                 frame_id=frame_id_map[old_frame_id],
-                information_source_id=_fk_if_exists(InformationSource, row.get("information_source_id")),
+                information_source_id=_fk_if_exists(
+                    InformationSource, row.get("information_source_id")
+                ),
                 label_id=int(row["label_id"]),
                 model_meta_id=_fk_if_exists(ModelMeta, row.get("model_meta_id")),
             )
@@ -248,7 +264,9 @@ def run() -> None:
     dataset.updated_at = timezone.now()
     dataset.save(update_fields=["updated_at"])
 
-    print(f"[PIVOT] Linked {len(annotation_ids)} annotations to dataset id={dataset.id}")
+    print(
+        f"[PIVOT] Linked {len(annotation_ids)} annotations to dataset id={dataset.id}"
+    )
 
     # -----------------------------------------------------------------
     # 6) Validation summary

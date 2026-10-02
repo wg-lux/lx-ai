@@ -90,7 +90,9 @@ def test_verify_split_disjointness_does_not_check_missing_indices() -> None:
     )
 
 
-def test_verify_split_disjointness_does_not_detect_duplicate_inside_same_split() -> None:
+def test_verify_split_disjointness_does_not_detect_duplicate_inside_same_split() -> (
+    None
+):
     # checks current function does not detect duplicate inside same split
     # this documents current behavior and shows possible future improvement
     verify_split_disjointness(
