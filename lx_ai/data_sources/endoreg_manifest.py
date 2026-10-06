@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
 
 # -----------------------------------------------------------------------------
 # Purpose
