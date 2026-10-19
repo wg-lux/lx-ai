@@ -1,5 +1,6 @@
 # lx_ai/ai_model_config/config.py
 from __future__ import annotations
+
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
 from lx_ai.ai_model_split.bucket_splitter import BucketSplitPolicy
 
 from lx_dtypes.models.base.app_base_model.pydantic.AppBaseModel import AppBaseModel
@@ -135,6 +137,17 @@ class TrainingConfig(AppBaseModel):
     - Strict schema validation (extra fields forbidden)
     - Deterministic project-path resolution
     - Safe dumping for run metadata (ddict / json)
+
+    Data-source modes:
+    - jsonl:
+        Legacy JSONL input mode.
+    - postgres:
+        Existing direct PostgreSQL integration with EndoRegDB.
+        Retained during migration for parity and backwards compatibility.
+    - endoreg_manifest:
+        Contract-based EndoRegDB integration.
+        The manifest is supplied to LX-AI by the calling service/request.
+        It is not loaded from a manifest JSON file configured here.
     """
 
     # -------------------------------------------------------------------------
@@ -149,6 +162,7 @@ class TrainingConfig(AppBaseModel):
     temporal_sampling: TemporalSamplingConfig = Field(
         default_factory=TemporalSamplingConfig
     )
+
     # -------------------------------------------------------------------------
     # Constants (ClassVar means: not a field, not part of model_dump)
     # -------------------------------------------------------------------------
@@ -165,9 +179,19 @@ class TrainingConfig(AppBaseModel):
     # -------------------------------------------------------------------------
     # Data source selection
     # -------------------------------------------------------------------------
-    data_source: Literal["jsonl", "postgres"] = Field(
+    data_source: Literal[
+        "jsonl",
+        "postgres",
+        "endoreg_manifest",
+    ] = Field(
         default="jsonl",
-        description="Where training data comes from.",
+        description=(
+            "Where training data comes from. "
+            "'jsonl' uses the legacy JSONL source, "
+            "'postgres' uses the existing direct PostgreSQL integration, "
+            "and 'endoreg_manifest' expects a validated EndoReg training "
+            "manifest to be supplied by the caller/service."
+        ),
     )
 
     # Used ONLY when data_source == 'postgres'
@@ -178,7 +202,10 @@ class TrainingConfig(AppBaseModel):
 
     dataset_ids: List[int] | None = Field(
         default=None,
-        description="List of AIDataSet.id values in PostgreSQL (required for postgres mode).",
+        description=(
+            "List of AIDataSet.id values in PostgreSQL "
+            "(required for postgres mode)."
+        ),
     )
 
     # Used ONLY when data_source == 'jsonl'
@@ -187,7 +214,19 @@ class TrainingConfig(AppBaseModel):
         description="Path to legacy JSONL file (used in jsonl mode).",
     )
 
+    # IMPORTANT:
+    #
+    # There is deliberately NO endoreg_manifest_path here.
+    #
+    # In endoreg_manifest mode, EndoRegDB owns database access and manifest
+    # generation. The resulting manifest object/payload is supplied to LX-AI
+    # through the service/request boundary.
+    #
+    # TrainingConfig controls training behavior. It does not define transport
+    # or storage for an EndoReg manifest.
+
     labelset_id: int | None = None
+
     labelset_version_to_train: int = Field(
         default=DEFAULT_LABELSET_VERSION,
         ge=1,
@@ -215,7 +254,10 @@ class TrainingConfig(AppBaseModel):
 
     training_root: Path | None = Field(
         default=None,
-        description="Root folder for training artifacts. Defaults to base_dir/data/model_training.",
+        description=(
+            "Root folder for training artifacts. "
+            "Defaults to base_dir/data/model_training."
+        ),
     )
 
     checkpoints_dir: Path | None = Field(
@@ -230,7 +272,9 @@ class TrainingConfig(AppBaseModel):
 
     create_dirs: bool = Field(
         default=True,
-        description="If True, create training_root/checkpoints_dir/runs_dir on validation.",
+        description=(
+            "If True, create training_root/checkpoints_dir/runs_dir on validation."
+        ),
     )
 
     # -------------------------------------------------------------------------
@@ -279,15 +323,18 @@ class TrainingConfig(AppBaseModel):
     # Stable bucket split policy (hash-based, immutable roles)
     # -------------------------------------------------------------------------
     save_bucket_snapshot: bool = Field(
-        default=False, description="If True, save bucket snapshot for this run."
+        default=False,
+        description="If True, save bucket snapshot for this run.",
     )
+
     # -------------------------------------------------------------------------
     # Meta field: useful for run metadata dumping (NOT created_at from base)
     # -------------------------------------------------------------------------
     updated_at: AwareDatetime = Field(default_factory=_now_utc)
 
     save_bucket_snapshot: bool = Field(
-        default=False, description="If True, save bucket snapshot for this run."
+        default=False,
+        description="If True, save bucket snapshot for this run.",
     )
 
     # -------------------------------------------------------------------------
@@ -327,19 +374,29 @@ class TrainingConfig(AppBaseModel):
     # -------------------------------------------------------------------------
     # Validators: coerce strings → Path (YAML will usually supply strings)
     # -------------------------------------------------------------------------
-
     @field_validator(
-        "base_dir", "training_root", "checkpoints_dir", "runs_dir", mode="before"
+        "base_dir",
+        "training_root",
+        "checkpoints_dir",
+        "runs_dir",
+        mode="before",
     )
     @classmethod
     def _coerce_to_path(cls, v: object) -> Path | None:
         if v is None or v == "":
             return None
+
         if isinstance(v, Path):
             return v.expanduser()
+
         if isinstance(v, str):
-            return Path(os.path.expandvars(v)).expanduser()
-        raise TypeError("Expected Path | str | None")
+            return Path(
+                os.path.expandvars(v)
+            ).expanduser()
+
+        raise TypeError(
+            "Expected Path | str | None"
+        )
 
     """ for paths we commented this
     @classmethod
@@ -358,13 +415,18 @@ class TrainingConfig(AppBaseModel):
     def _coerce_checkpoint_to_path(cls, v: object) -> Path | None:
         if v is None or v == "":
             return None
+
         if isinstance(v, Path):
             return v.expanduser()
+
         if isinstance(v, str):
             # NEW: expand environment variables
             v = os.path.expandvars(v)
             return Path(v).expanduser()
-        raise TypeError("backbone_checkpoint must be a Path, str, or None")
+
+        raise TypeError(
+            "backbone_checkpoint must be a Path, str, or None"
+        )
 
     # -------------------------------------------------------------------------
     # Cross-field invariants & computed defaults (the “brain”)
@@ -379,11 +441,14 @@ class TrainingConfig(AppBaseModel):
           2) else derive from base_dir
           3) else infer base_dir from source_file (AppBaseModel)
         """
+
         # 1) Infer base_dir if missing
         if self.base_dir is None:
             if self.source_file is not None:
                 # Best-case: config came from YAML → infer repo root from it
-                self.base_dir = _find_repo_root_from_lx_ai(self.source_file)
+                self.base_dir = _find_repo_root_from_lx_ai(
+                    self.source_file
+                )
             else:
                 # Fallback: run from cwd
                 self.base_dir = Path.cwd()
@@ -392,22 +457,45 @@ class TrainingConfig(AppBaseModel):
 
         # 2) training_root default
         if self.training_root is None:
-            self.training_root = self.base_dir / "data" / "model_training"
+            self.training_root = (
+                self.base_dir
+                / "data"
+                / "model_training"
+            )
             # self.training_root = self.training_root.resolve()
 
         # 3) child dirs defaults
         if self.checkpoints_dir is None:
-            self.checkpoints_dir = self.training_root / "checkpoints"
-        if self.runs_dir is None:
-            self.runs_dir = self.training_root / "runs"
+            self.checkpoints_dir = (
+                self.training_root
+                / "checkpoints"
+            )
 
-        self.checkpoints_dir = self.checkpoints_dir.resolve()
-        self.runs_dir = self.runs_dir.resolve()
+        if self.runs_dir is None:
+            self.runs_dir = (
+                self.training_root
+                / "runs"
+            )
+
+        self.checkpoints_dir = (
+            self.checkpoints_dir.resolve()
+        )
+
+        self.runs_dir = (
+            self.runs_dir.resolve()
+        )
 
         # 4) Create directories if requested
         if self.create_dirs:
-            for d in (self.training_root, self.checkpoints_dir, self.runs_dir):
-                d.mkdir(parents=True, exist_ok=True)
+            for d in (
+                self.training_root,
+                self.checkpoints_dir,
+                self.runs_dir,
+            ):
+                d.mkdir(
+                    parents=True,
+                    exist_ok=True,
+                )
 
         # 5) Validate split ratios (must leave room for training set)
         # if self.val_split + self.test_split >= 1.0:
@@ -415,31 +503,67 @@ class TrainingConfig(AppBaseModel):
 
         # 6) Validate checkpoint if provided
         if self.backbone_checkpoint is not None:
-            ckpt = self.backbone_checkpoint.expanduser().resolve()
+            ckpt = (
+                self.backbone_checkpoint
+                .expanduser()
+                .resolve()
+            )
+
             if not ckpt.is_file():
                 raise ValueError(
-                    f"backbone_checkpoint does not exist or is not a file: {ckpt}"
+                    "backbone_checkpoint does not exist or is not a file: "
+                    f"{ckpt}"
                 )
+
             self.backbone_checkpoint = ckpt
 
         # Update updated_at whenever config is validated (nice for traceability)
         self.updated_at = _now_utc()
+
         return self
 
+    # -------------------------------------------------------------------------
+    # Data-source validation
+    # -------------------------------------------------------------------------
     @model_validator(mode="after")
     def _validate_data_source(self) -> "TrainingConfig":
         if self.data_source == "postgres":
             if not self.dataset_ids:
                 raise ValueError(
-                    "dataset_ids must be provided when data_source='postgres'"
+                    "dataset_ids must be provided when "
+                    "data_source='postgres'"
                 )
+
         if self.data_source == "jsonl":
             if self.jsonl_path is None:
-                raise ValueError("jsonl_path must be set when data_source='jsonl'")
+                raise ValueError(
+                    "jsonl_path must be set when "
+                    "data_source='jsonl'"
+                )
+
+        # No additional configuration field is required for
+        # data_source='endoreg_manifest'.
+        #
+        # The manifest itself belongs to the runtime/service request and will
+        # be validated at the LX-AI input boundary before entering the training
+        # pipeline.
+
         return self
 
     @model_validator(mode="after")
     def _validate_labelset(self):
-        if self.data_source == "postgres" and self.labelset_id is None:
-            raise ValueError("labelset_id must be provided for postgres data source")
+        if (
+            self.data_source == "postgres"
+            and self.labelset_id is None
+        ):
+            raise ValueError(
+                "labelset_id must be provided for postgres data source"
+            )
+
+        # Manifest mode does not require labelset_id here.
+        #MOreover,
+        # EndoRegDB owns LabelSet resolution and places the resolved LabelSet
+        # identity, version, ordered labels, vectors, and masks in the manifest
+        # contract supplied to LX-AI.
+
         return self

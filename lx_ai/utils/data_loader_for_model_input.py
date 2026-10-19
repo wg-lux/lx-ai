@@ -11,6 +11,18 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from lx_ai.ai_model_config.config import TrainingConfig
 
+from lx_ai.data_sources.endoreg_manifest import (
+    EndoRegTrainingDatasetManifest,
+)
+
+from lx_ai.data_sources.endoreg_manifest_adapter import (
+    ImagePathResolver,
+)
+
+from lx_ai.data_sources.endoreg_manifest_pipeline import (
+    build_lx_ai_dataset_from_endoreg_manifest_pipeline,
+)
+
 from lx_ai.utils.db_loader_for_model_input import (
     load_annotations,
     load_labelset_from_postgres,
@@ -343,6 +355,8 @@ def _build_from_legacy_jsonl(
 def build_dataset_for_training(
     *,
     config: TrainingConfig,
+    manifest: EndoRegTrainingDatasetManifest | None = None,
+    image_path_resolver: ImagePathResolver | None = None,
 ) -> ImageMultilabelDatasetDataDict:
     """
     Replacement for old Django build_dataset_for_training(dataset, labelset=None)
@@ -540,6 +554,165 @@ def build_dataset_for_training(
         ds["annotation_positive_count"] = pos if config.data_source == "postgres" else 0
         ds["annotation_negative_count"] = neg if config.data_source == "postgres" else 0
         ds["allocation_diagnostics"] = assign_res["diagnostics"]
+
+        return ds
+        
+    if config.data_source == "endoreg_manifest":
+        if manifest is None:
+            raise ValueError(
+                "manifest must be provided when "
+                "data_source='endoreg_manifest'"
+            )
+
+        if image_path_resolver is None:
+            raise ValueError(
+                "image_path_resolver must be provided when "
+                "data_source='endoreg_manifest'"
+            )
+
+        temporal_sampling = getattr(
+            config,
+            "temporal_sampling",
+            None,
+        )
+
+        if temporal_sampling is None:
+            raise ValueError(
+                "temporal_sampling configuration is required "
+                "for data_source='endoreg_manifest'"
+            )
+
+        ds = (
+            build_lx_ai_dataset_from_endoreg_manifest_pipeline(
+                manifest=manifest,
+                resolve_image_path=image_path_resolver,
+                temporal_sampling_enabled=(
+                    temporal_sampling.enabled
+                ),
+                temporal_max_frames_per_sequence=(
+                    temporal_sampling.max_frames_per_sequence
+                ),
+                temporal_min_distance_frames=(
+                    temporal_sampling.min_distance_frames
+                ),
+                temporal_sequence_gap_frames=(
+                    temporal_sampling.sequence_gap_frames
+                ),
+                temporal_split_on_label_change=(
+                    temporal_sampling.split_on_label_change
+                ),
+                temporal_rare_label_aware=(
+                    temporal_sampling.rare_label_aware
+                ),
+            )
+        )
+
+        # -------------------------------------------------------------
+        # From this point onward, use the SAME existing bucket/split
+        # logic used by the PostgreSQL path.
+        # -------------------------------------------------------------
+
+        label_names = [
+            str(
+                label.get(
+                    "name",
+                    "<unnamed>",
+                )
+            )
+            for label in ds["labels"]
+        ]
+
+        assign_res = (
+            assign_buckets_with_persistent_video_registry(
+                config=config,
+                video_ids=ds["video_ids"],
+                dataset_ids_per_frame=(
+                    ds["dataset_ids_per_frame"]
+                ),
+                label_vectors=(
+                    ds["label_vectors"]
+                ),
+                label_masks=(
+                    ds["label_masks"]
+                ),
+                label_names=label_names,
+            )
+        )
+
+        train_idx = assign_res[
+            "train_indices"
+        ]
+
+        val_idx = assign_res[
+            "val_indices"
+        ]
+
+        test_idx = assign_res[
+            "test_indices"
+        ]
+
+        bucket_ids = assign_res[
+            "bucket_ids_per_sample"
+        ]
+
+        bucket_sizes = assign_res[
+            "bucket_sizes"
+        ]
+
+        role_sizes = assign_res[
+            "role_sizes"
+        ]
+
+        verify_bucket_integrity(
+            frame_ids=ds["frame_ids"],
+            old_examination_ids=(
+                ds["old_examination_ids"]
+            ),
+            bucket_ids=bucket_ids,
+            video_ids=ds["video_ids"],
+        )
+
+        verify_split_disjointness(
+            train_indices=train_idx,
+            val_indices=val_idx,
+            test_indices=test_idx,
+        )
+
+        ds["train_indices"] = train_idx
+        ds["val_indices"] = val_idx
+        ds["test_indices"] = test_idx
+
+        ds["bucket_policy"] = (
+            config.bucket_policy.to_meta()
+        )
+
+        ds["bucket_sizes"] = (
+            bucket_sizes
+        )
+
+        ds["role_sizes"] = (
+            role_sizes
+        )
+
+        ds["bucket_ids_per_sample"] = (
+            bucket_ids
+        )
+
+        ds["bucket_map"] = assign_res[
+            "bucket_map"
+        ]
+
+        # IMPORTANT:
+        # Keep the annotation counts produced by the manifest adapter.
+        # Do not recalculate them here.
+        #
+        # The adapter deliberately preserves the legacy PostgreSQL
+        # annotation-row diagnostic semantics as closely as the
+        # manifest provenance permits.
+
+        ds["allocation_diagnostics"] = (
+            assign_res["diagnostics"]
+        )
 
         return ds
 

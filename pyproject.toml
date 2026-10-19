@@ -21,6 +21,7 @@ dependencies = [
   "endoreg-db",
   "lx-dtypes>=0.1.5",
   "gdown>=5.2.0",
+  "pytest>=9.0.2",
 ]
 
 description = "Database module based on lx-dtypes for research data management."
