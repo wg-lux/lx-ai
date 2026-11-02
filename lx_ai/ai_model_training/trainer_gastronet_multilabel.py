@@ -12,6 +12,13 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
 from lx_ai.ai_model_config.config import TrainingConfig
+from lx_ai.data_sources.endoreg_manifest import (
+    EndoRegTrainingDatasetManifest,
+)
+
+from lx_ai.data_sources.endoreg_manifest_adapter import (
+    ImagePathResolver,
+)
 
 from lx_ai.ai_model_dataset.dataset import (
     EndoMultiLabelDataset,
@@ -547,9 +554,20 @@ def _has_any_known_negative(targets: torch.Tensor, masks: torch.Tensor) -> bool:
     return bool(((m == 1) & (t == 0)).any().item())
 
 
-def train_gastronet_multilabel(config: TrainingConfig) -> TrainResult:
-    data = build_dataset_for_training(config=config)
-    # image_paths: List[str] = data["image_paths"]
+
+def train_gastronet_multilabel(
+    config: TrainingConfig,
+    *,
+    manifest: EndoRegTrainingDatasetManifest | None = None,
+    image_path_resolver: ImagePathResolver | None = None,
+) -> TrainResult:
+
+    data = build_dataset_for_training(
+        config=config,
+        manifest=manifest,
+        image_path_resolver=image_path_resolver,
+    )
+
 
     image_paths_str: List[str] = cast(List[str], data["image_paths"])
     image_paths: List[Path] = [Path(p) for p in image_paths_str]

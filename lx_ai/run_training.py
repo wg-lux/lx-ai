@@ -19,6 +19,13 @@ import django
 django.setup()
 
 from lx_ai.ai_model_config.config import TrainingConfig  # noqa: E402
+from lx_ai.data_sources.endoreg_manifest import (
+    EndoRegTrainingDatasetManifest,
+)  # noqa: E402
+
+from lx_ai.data_sources.endoreg_manifest_adapter import (
+    ImagePathResolver,
+)  # noqa: E402
 from lx_ai.utils.logging_utils import kv, section, subsection  # noqa: E402
 from lx_ai.utils.path_diagnostics import (  # noqa: E402
     print_runtime_path_diagnostics,
@@ -26,8 +33,7 @@ from lx_ai.utils.path_diagnostics import (  # noqa: E402
 )
 
 
-TrainFunction = Callable[[TrainingConfig], dict[str, Any]]
-
+TrainFunction = Callable[..., dict[str, Any]]
 
 def _load_train_function() -> TrainFunction:
     """
@@ -44,7 +50,13 @@ def _load_train_function() -> TrainFunction:
     return train_gastronet_multilabel
 
 
-def main(train_fn: TrainFunction | None = None) -> None:
+def main(
+    train_fn: TrainFunction | None = None,
+    *,
+    manifest: EndoRegTrainingDatasetManifest | None = None,
+    image_path_resolver: ImagePathResolver | None = None,
+) -> None:
+
     training_config_path = Path(
         os.getenv(
             "TRAINING_CONFIG_PATH",
@@ -63,7 +75,6 @@ def main(train_fn: TrainFunction | None = None) -> None:
 
     section("TRAINING START")
 
-    # TODO: consider logging more
     subsection("CONFIG")
     kv("Dataset UUID", cfg.dataset_uuid)
     kv("Data source", cfg.data_source)
@@ -76,13 +87,43 @@ def main(train_fn: TrainFunction | None = None) -> None:
     kv("Backbone checkpoint", cfg.backbone_checkpoint)
     kv("Total buckets", cfg.bucket_policy.num_buckets)
 
-    out = train_fn(cfg)
+    # ---------------------------------------------------------
+    # Execute training according to selected data source
+    # ---------------------------------------------------------
+
+    if cfg.data_source == "endoreg_manifest":
+
+        if manifest is None:
+            raise ValueError(
+                "An EndoReg training manifest must be supplied "
+                "when data_source='endoreg_manifest'."
+            )
+
+        if image_path_resolver is None:
+            raise ValueError(
+                "An image_path_resolver must be supplied "
+                "when data_source='endoreg_manifest'."
+            )
+
+        kv("Manifest supplied", True)
+        kv("Image path resolver supplied", True)
+
+        out = train_fn(
+            cfg,
+            manifest=manifest,
+            image_path_resolver=image_path_resolver,
+        )
+
+    else:
+        # Preserve existing JSONL and PostgreSQL execution.
+        out = train_fn(cfg)
 
     subsection("ARTIFACTS")
     kv("Model saved to", out["model_path"])
     kv("Metadata saved to", out["meta_path"])
 
     section("TRAINING COMPLETE")
+
 
 
 if __name__ == "__main__":

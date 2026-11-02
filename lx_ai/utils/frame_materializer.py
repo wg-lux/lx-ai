@@ -18,6 +18,7 @@ def ensure_training_frames_available(
         if ann.get("annotation_id") is not None
     ]
 
+
     if not annotation_ids:
         return annotations
 
