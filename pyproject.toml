@@ -21,6 +21,8 @@ dependencies = [
   "endoreg-db",
   "lx-dtypes>=0.1.5",
   "gdown>=5.2.0",
+  "pytest-xdist>=3.8.0",
+  "pytest-cov>=7.0.0",
 ]
 
 description = "Database module based on lx-dtypes for research data management."
@@ -120,6 +122,12 @@ packages = ["lx_ai"]
 [build-system]
 requires = ["hatchling>=1.29.0"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
+]
 
 [tool.hatch.build.targets.sdist]
 exclude = [

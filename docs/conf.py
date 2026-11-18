@@ -1,4 +1,4 @@
-"""Sphinx configuration for the lx-data-models documentation."""
+"""Sphinx configuration for the lx-AI documentation"""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ DOCS_PATH = Path(__file__).resolve().parent
 REPO_ROOT = DOCS_PATH.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-project = "lx-dtypes"
+project = "LX-AI"
 author = "Thomas J. Lux"
 current_year = datetime.datetime.now(datetime.timezone.utc).year
 copyright = f"{current_year}, {author}"
 try:
-    release = metadata.version("lx-dtypes")
+    release = metadata.version("lx-ai-module")
 except metadata.PackageNotFoundError:  # pragma: no cover - docs built from source tree
     release = "0.0.0"
 
@@ -61,7 +61,7 @@ exclude_patterns: list[str] = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "furo"
 html_static_path = ["_static"]
-html_title = "lx-dtypes Documentation"
+html_title = "LX-AI Documentation"
 
 myst_heading_anchors = 3
 todo_include_todos = True

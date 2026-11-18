@@ -2,7 +2,6 @@
 from __future__ import annotations
 import os
 import json
-import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, TypedDict
@@ -14,6 +13,7 @@ from lx_ai.ai_model_config.config import TrainingConfig
 from lx_ai.utils.db_loader_for_model_input import (
     load_annotations,
     load_labelset_from_postgres,
+    load_labelset_from_sqlite,
 )
 
 from lx_ai.utils.data_loader_for_model_training import (
@@ -550,71 +550,17 @@ def load_labelset(config, labelset_id: int, labelset_version: int):
     db_backend = os.getenv("DB_BACKEND", "postgres")
 
     if db_backend == "sqlite":
-        return load_labelset_from_sqlite(labelset_id, labelset_version)
-    elif db_backend == "postgres":
+        return load_labelset_from_sqlite(
+            labelset_id=labelset_id,
+            labelset_version=labelset_version,
+        )
+
+    if db_backend == "postgres":
         return load_labelset_from_postgres(
             labelset_id=labelset_id,
             labelset_version=labelset_version,
         )
-    else:
-        raise ValueError(f"Unsupported DB backend: {db_backend}")
+
+    raise ValueError(f"Unsupported DB backend: {db_backend}")
 
 
-def load_labelset_from_sqlite(
-    labelset_id: int,
-    labelset_version: int,
-) -> dict:
-    """
-    Load labelset metadata + ordered labels from SQLite.
-
-    Same logic as PostgreSQL version.
-    """
-
-    db_path = Path(os.getenv("SQLITE_DB_PATH", "dev_db.sqlite")).expanduser()
-
-    if not db_path.exists():
-        raise FileNotFoundError(f"SQLite DB not found: {db_path}")
-
-    sql = """
-    SELECT
-        ls.id,
-        ls.version,
-        l.id,
-        l.name
-    FROM endoreg_db_labelset ls
-    JOIN endoreg_db_labelset_labels lsl
-        ON lsl.labelset_id = ls.id
-    JOIN endoreg_db_label l
-        ON l.id = lsl.label_id
-    WHERE ls.id = ?
-      AND ls.version = ?
-    ORDER BY l.id
-    """
-
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute(sql, (labelset_id, labelset_version))
-    rows = cursor.fetchall()
-
-    conn.close()
-
-    if not rows:
-        raise ValueError(
-            f"No labels found for labelset_id={labelset_id}, version={labelset_version}"
-        )
-
-    labels = []
-    for row in rows:
-        labels.append(
-            {
-                "id": row[2],
-                "name": row[3],
-            }
-        )
-
-    return {
-        "id": labelset_id,
-        "version": labelset_version,
-        "labels": labels,
-    }

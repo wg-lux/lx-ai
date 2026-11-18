@@ -26,6 +26,7 @@ def test_frame_materializer_reuses_same_frame_path_for_multilabel_annotations(
     annotations = [
         {"annotation_id": 101, "label_id": 1, "frame": {}},
         {"annotation_id": 102, "label_id": 2, "frame": {}},
+        {}
     ]
 
     out = ensure_training_frames_available(
