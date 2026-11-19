@@ -1,4 +1,3 @@
-
 """Backward-compatible LX-AI media integration facade."""
 
 from lx_ai.integrations.endoreg_db.media.legacy_bridge import (

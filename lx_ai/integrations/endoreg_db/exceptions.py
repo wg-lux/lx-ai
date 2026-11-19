@@ -18,4 +18,4 @@ class EndoRegDBMediaError(EndoRegDBIntegrationError):
 
 
 class EndoRegDBCompatibilityError(EndoRegDBIntegrationError):
-    """Raised when the external integration contract is incompatible."""
+    """Raised when the external integration API is incompatible."""

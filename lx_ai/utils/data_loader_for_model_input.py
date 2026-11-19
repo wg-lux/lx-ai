@@ -10,10 +10,8 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from lx_ai.ai_model_config.config import TrainingConfig
 
-from lx_ai.utils.db_loader_for_model_input import (
-    load_annotations,
-    load_labelset_from_postgres,
-    load_labelset_from_sqlite,
+from lx_ai.integrations.endoreg_db.database import (
+    get_database_repository,
 )
 
 from lx_ai.utils.data_loader_for_model_training import (
@@ -413,11 +411,12 @@ def build_dataset_for_training(
 
     if config.data_source == "postgres":
         all_annotations = []
+        repository = get_database_repository()
         """annotations = load_annotations_from_postgres(
             dataset_id=config.dataset_id
         )"""
         for ds_id in config.dataset_ids:
-            anns = load_annotations(config=config, dataset_id=ds_id)
+            anns = repository.get_annotations(ds_id)
 
             temporal_sampling = getattr(config, "temporal_sampling", None)
 
@@ -459,8 +458,7 @@ def build_dataset_for_training(
         neg = sum(1 for v in raw_values if v is not None and not bool(v))
         # print(f"[ANNOTATIONS] positives={pos} negatives={neg}")
 
-        labelset = load_labelset(
-            config=config,
+        labelset = repository.get_labelset(
             labelset_id=config.labelset_id,
             labelset_version=config.labelset_version_to_train,
         )
@@ -547,20 +545,11 @@ def build_dataset_for_training(
 
 
 def load_labelset(config, labelset_id: int, labelset_version: int):
-    db_backend = os.getenv("DB_BACKEND", "postgres")
+    """Backward-compatible labelset loading function."""
 
-    if db_backend == "sqlite":
-        return load_labelset_from_sqlite(
-            labelset_id=labelset_id,
-            labelset_version=labelset_version,
-        )
+    repository = get_database_repository()
 
-    if db_backend == "postgres":
-        return load_labelset_from_postgres(
-            labelset_id=labelset_id,
-            labelset_version=labelset_version,
-        )
-
-    raise ValueError(f"Unsupported DB backend: {db_backend}")
-
-
+    return repository.get_labelset(
+        labelset_id=labelset_id,
+        labelset_version=labelset_version,
+    )

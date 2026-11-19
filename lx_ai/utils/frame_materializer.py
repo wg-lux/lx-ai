@@ -27,8 +27,8 @@ def ensure_training_frames_available(
     )
     print(f"[FRAME MATERIALIZATION] fps={fps}, ext={ext}, overwrite={overwrite}")
 
-    from lx_ai.utils.endoregdb_encrypted_frame_bridge import (
-        materialize_frames_for_lxai_annotations,
+    from lx_ai.integrations.endoreg_db.media import (
+        EndoRegDBMediaAdapter,
     )
 
     # ------------------------------------------------------------------
@@ -45,7 +45,9 @@ def ensure_training_frames_available(
         flush=True,
     )"""
 
-    path_by_annotation_id = materialize_frames_for_lxai_annotations(
+    media_adapter = EndoRegDBMediaAdapter()
+
+    path_by_annotation_id = media_adapter.materialize_frames(
         annotation_ids=annotation_ids,
         output_root=output_root,
         fps=fps,

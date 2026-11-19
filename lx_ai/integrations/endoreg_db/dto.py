@@ -1,10 +1,3 @@
-
-"""LX-AI-owned data transfer objects.
-
-These structures describe the data LX-AI consumes.
-They deliberately do not import EndoRegDB models.
-"""
-
 from typing import Any, NotRequired, TypedDict
 
 
@@ -20,6 +13,7 @@ class FrameDTO(TypedDict):
     video_uuid: str | None
     processed_file: str | None
     video_fps: float | None
+    resolved_frame_path: NotRequired[str]
 
 
 class LabelDTO(TypedDict):

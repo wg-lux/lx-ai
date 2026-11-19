@@ -1,4 +1,3 @@
-
 """Backward-compatible facade for LX-AI database loading.
 
 All database-specific implementation lives inside the
@@ -8,11 +7,6 @@ Existing callers retain their original import paths.
 """
 
 from lx_ai.integrations.endoreg_db.database.legacy_sql import (
-    _first_env,
-    _get_password,
-    _get_db_connection_kwargs,
-    _postgres_column_exists,
-    _sqlite_column_exists,
     load_annotations,
     load_annotations_from_postgres,
     load_annotations_from_sqlite,

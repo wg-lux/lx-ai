@@ -283,6 +283,7 @@ def load_annotations(config, dataset_id: int) -> list[dict]:
     else:
         raise ValueError(f"Unsupported DB backend: {db_backend}")
 
+
 def _sqlite_column_exists(
     cursor: sqlite3.Cursor,
     table_name: str,
@@ -290,6 +291,7 @@ def _sqlite_column_exists(
 ) -> bool:
     cursor.execute(f'PRAGMA table_info("{table_name}")')
     return any(row[1] == column_name for row in cursor.fetchall())
+
 
 def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
     db_path = Path(os.getenv("SQLITE_DB_PATH", "dev_db.sqlite")).expanduser()
@@ -313,9 +315,7 @@ def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
         )
 
         old_examination_expr = (
-            "f.old_examination_id"
-            if has_old_examination_id
-            else "NULL"
+            "f.old_examination_id" if has_old_examination_id else "NULL"
         )
 
         sql = f"""
@@ -384,15 +384,14 @@ def load_annotations_from_sqlite(dataset_id: int) -> list[dict]:
 
     return rows
 
+
 def load_labelset_from_sqlite(
     labelset_id: int,
     labelset_version: int,
 ) -> dict:
     """Load labelset metadata and ordered labels from SQLite."""
 
-    db_path = Path(
-        os.getenv("SQLITE_DB_PATH", "dev_db.sqlite")
-    ).expanduser()
+    db_path = Path(os.getenv("SQLITE_DB_PATH", "dev_db.sqlite")).expanduser()
 
     if not db_path.exists():
         raise FileNotFoundError(f"SQLite DB not found: {db_path}")
@@ -421,15 +420,11 @@ def load_labelset_from_sqlite(
 
     if not rows:
         raise ValueError(
-            f"No labels found for labelset_id={labelset_id}, "
-            f"version={labelset_version}"
+            f"No labels found for labelset_id={labelset_id}, version={labelset_version}"
         )
 
     return {
         "id": labelset_id,
         "version": labelset_version,
-        "labels": [
-            {"id": row[2], "name": row[3]}
-            for row in rows
-        ],
+        "labels": [{"id": row[2], "name": row[3]} for row in rows],
     }

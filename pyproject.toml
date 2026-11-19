@@ -23,6 +23,8 @@ dependencies = [
   "gdown>=5.2.0",
   "pytest-xdist>=3.8.0",
   "pytest-cov>=7.0.0",
+  "ruff>=0.14.9",
+  "pre-commit>=4.6.0",
 ]
 
 description = "Database module based on lx-dtypes for research data management."
@@ -125,6 +127,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.6.0",
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.8.0",
 ]
