@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING
 
 from endoreg_db.utils.encryption.encrypted import MAGIC
 from endoreg_db.utils.filesystem.file_operations import (
@@ -37,7 +38,8 @@ def _field_file_is_encrypted(video: VideoFile, source_path: Path | None) -> bool
     if processed_file and storage and hasattr(storage, "is_encrypted"):
         try:
             return bool(storage.is_encrypted(processed_file.name))
-        except Exception:
+        except (OSError, ValueError, NotImplementedError):
+            # Fall back to checking the local file's encryption header.
             pass
 
     return bool(
@@ -49,13 +51,7 @@ def _encryption_key_configured() -> bool:
     key_value = os.environ.get("LX_ANNOTATE_MASTER_KEY", "").strip()
     key_file = os.environ.get("LX_ANNOTATE_MASTER_KEY_FILE", "").strip()
 
-    if key_value:
-        return True
-
-    if key_file and Path(key_file).expanduser().is_file():
-        return True
-
-    return False
+    return bool(key_value or (key_file and Path(key_file).expanduser().is_file()))
 
 
 def _require_encryption_key_for_video(video: VideoFile) -> None:
@@ -175,7 +171,7 @@ def materialize_frames_for_lxai_annotations(
     )
 
     video_frame_pks: dict[int, set[int]] = {}
-    annotation_to_frame_pk: dict[int, int] = {}
+    annotation_to_frame: dict[int, tuple[int, int]] = {}
 
     for ann in annotations.iterator(chunk_size=2000):
         if ann.frame_id is None or ann.frame is None or ann.frame.video_id is None:
@@ -185,7 +181,7 @@ def materialize_frames_for_lxai_annotations(
         frame_pk = int(ann.frame_id)
 
         video_frame_pks.setdefault(video_id, set()).add(frame_pk)
-        annotation_to_frame_pk[int(ann.pk)] = frame_pk
+        annotation_to_frame[int(ann.pk)] = (video_id, frame_pk)
 
     if not video_frame_pks:
         return {}
@@ -224,12 +220,11 @@ def materialize_frames_for_lxai_annotations(
                 )
 
     out: dict[int, str] = {}
-    for annotation_id, frame_pk in annotation_to_frame_pk.items():
-        for video_id, frame_pks in video_frame_pks.items():
-            if frame_pk in frame_pks:
-                path = root / f"video_{video_id}" / _frame_pk_filename(frame_pk, ext)
-                if path.exists():
-                    out[annotation_id] = str(path)
-                break
+
+    for annotation_id, (video_id, frame_pk) in annotation_to_frame.items():
+        path = root / f"video_{video_id}" / _frame_pk_filename(frame_pk, ext)
+
+        if path.is_file():
+            out[annotation_id] = str(path)
 
     return out
