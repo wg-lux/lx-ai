@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-from pathlib import Path
 import os
+from pathlib import Path
 
-from pydantic import field_validator, model_validator
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _read_secret_file(path: Path, label: str) -> str:
     try:
-        value = path.read_text().strip()
+        value = path.read_text(encoding="utf-8").strip()
     except OSError as exc:
         raise ValueError(f"Unable to read {label} from {path}: {exc}") from exc
+
     if not value:
-        raise ValueError(f"Secret file {path} for {label} is empty")
+        raise ValueError(f"Secret file for {label} is empty: {path}")
+
     return value
 
 
@@ -26,57 +28,76 @@ class AppConfig(BaseSettings):
 
     debug: bool = False
 
-    db_engine: str = "django.db.backends.postgresql"
-    db_name: str = os.getenv("DJANGO_DB_NAME", "endoregDbLocal")
-    db_user: str = os.getenv("DJANGO_DB_USER", "endoregDbLocal")
+    db_engine: str = "django.db.backends.sqlite3"
+    db_name: str = "endoregDbLocal"
+    db_user: str = "endoregDbLocal"
     db_password: str = ""
     db_password_file: Path | None = None
-    db_host: str = os.getenv("DJANGO_DB_HOST", "localhost")
-    db_port: str = os.getenv("DJANGO_DB_PORT", "5432")
-    db_sslmode: str = "prefer"
+    db_host: str = "localhost"
+    db_port: str = "5432"
+    db_sslmode: str = "disable"
 
-    data_dir: Path = Path(os.getenv("DATA_DIR", "data"))
-    conf_dir: Path = Path(os.getenv("CONF_DIR", "conf"))
-    frame_dir: Path = Path(os.getenv("FRAME_DIR", "data/frames"))
-    log_level: str = os.getenv("LOG_LEVEL", "INFO")
-
-    @field_validator("db_password_file", mode="before")
-    @classmethod
-    def normalize_secret_file(cls, value):
-        if value is None:
-            return None
-        if isinstance(value, str) and not value.strip():
-            return None
-        return value
+    data_dir: Path = Path("data")
+    conf_dir: Path = Path("conf")
+    frame_dir: Path = Path("data/frames")
+    log_level: str = "INFO"
 
     @model_validator(mode="after")
-    def apply_secret_files(self) -> "AppConfig":
-        if self.db_password_file and not self.db_password:
-            path = Path(self.db_password_file)
+    def validate_runtime_configuration(self) -> AppConfig:
+        environment = (
+            os.getenv(
+                "DJANGO_ENV",
+                "development",
+            )
+            .strip()
+            .lower()
+        )
 
-            # Same behavior as lx-annotate
-            if path.exists():
-                self.db_password = _read_secret_file(path, "db_password")
+        is_production = environment in {
+            "production",
+            "prod",
+        }
+
+        is_postgres = self.db_engine.endswith("postgresql")
+
+        # Resolve password file if configured.
+        if self.db_password_file and not self.db_password:
+            self.db_password = _read_secret_file(
+                Path(self.db_password_file),
+                "db_password",
+            )
+
+        # Production must use PostgreSQL.
+        if is_production and not is_postgres:
+            raise ValueError(
+                f"Production must use PostgreSQL. Configured engine: {self.db_engine}"
+            )
+
+        # Never allow production PostgreSQL without credentials.
+        if is_production and is_postgres and not self.db_password:
+            raise ValueError(
+                "Production PostgreSQL password is missing. "
+                "Set DJANGO_DB_PASSWORD or provide a valid "
+                "DJANGO_DB_PASSWORD_FILE."
+            )
 
         return self
 
 
-def load_config(env_file: Path | None = None) -> AppConfig:
+def load_config(
+    env_file: Path | None = None,
+) -> AppConfig:
+    if env_file is not None:
+        return AppConfig(_env_file=env_file)
+
     return AppConfig()
 
 
-@model_validator(mode="after")
-def debug_print(self) -> "AppConfig":
-    print("\n========== APP CONFIG DEBUG ==========")
-    print(f"DATA_DIR: {self.data_dir}")
-    print(f"CONF_DIR: {self.conf_dir}")
-    print(f"FRAME_DIR: {self.frame_dir}")
-    print(f"DJANGO_ENV: {os.getenv('DJANGO_ENV')}")
-    print(f"ENV DATA_DIR: {os.getenv('DATA_DIR')}")
-    print("======================================\n")
-    print(f"DB PASSWORD FILE: {self.db_password_file}")
-    print(f"DB PASSWORD LOADED: {bool(self.db_password)}")
-    return self
-
-
-db_backend: str = os.getenv("DB_BACKEND", "postgres")
+db_backend: str = (
+    os.getenv(
+        "DB_BACKEND",
+        "sqlite",
+    )
+    .strip()
+    .lower()
+)

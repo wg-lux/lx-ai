@@ -1,12 +1,14 @@
-from .settings_base import *  # noqa: F403,F401
-from lx_ai.settings.config import load_config
 import os
 from pathlib import Path
 
+from lx_ai.settings.config import load_config
+
+from .settings_base import *  # noqa: F403,F401
 
 config = load_config()
 
 DEBUG = False
+
 
 DATABASES = {
     "default": {
@@ -16,6 +18,11 @@ DATABASES = {
         "PASSWORD": config.db_password,
         "HOST": config.db_host,
         "PORT": config.db_port,
+        "OPTIONS": (
+            {"sslmode": config.db_sslmode}
+            if config.db_engine.endswith("postgresql")
+            else {}
+        ),
     }
 }
 
