@@ -5,7 +5,7 @@ import os
 import sqlite3
 from pathlib import Path
 from typing import Optional
-
+from django.conf import settings
 import psycopg
 
 
@@ -86,38 +86,23 @@ def _get_password() -> str:
 
 
 def _get_db_connection_kwargs() -> dict:
-    """
-    Resolve connection settings with local-first, service-compatible fallback.
+    database = settings.DATABASES["default"]
 
-    Precedence:
-      DEV_DB_*    -> local explicit override
-      DJANGO_DB_* -> service/runtime compatibility
-      defaults    -> safe local fallback
-    """
-    host = _first_env("DEV_DB_HOST", "DJANGO_DB_HOST", default="localhost")
-    port_str = _first_env("DEV_DB_PORT", "DJANGO_DB_PORT", default="5432")
-    dbname = _first_env("DEV_DB_NAME", "DJANGO_DB_NAME", default="endoregDbLocal")
-    user = _first_env("DEV_DB_USER", "DJANGO_DB_USER", default="endoregDbLocal")
-    sslmode = _first_env("DEV_DB_SSLMODE", "DJANGO_DB_SSLMODE", default="disable")
-
-    try:
-        port = int(port_str)
-    except (TypeError, ValueError) as exc:
+    if not database["ENGINE"].endswith("postgresql"):
         raise RuntimeError(
-            f"Invalid database port: {port_str!r}. "
-            "Set DEV_DB_PORT or DJANGO_DB_PORT to an integer."
-        ) from exc
+            "PostgreSQL connection requested but Django is not "
+            "configured for PostgreSQL."
+        )
 
-    password = _get_password()
-
-    return {
-        "host": host,
-        "port": port,
-        "dbname": dbname,
-        "user": user,
-        "password": password,
-        "sslmode": sslmode,
+    kwargs = {
+        "dbname": database["NAME"],
+        "user": database["USER"] or None,
+        "password": database["PASSWORD"] or None,
+        "host": database["HOST"] or None,
+        "port": int(database["PORT"] or 5432),
     }
+
+    return kwargs
 
 
 # TODO Making old_examination_id nullable in the DB schema would be ideal, but for now we can just treat it as optional in the code.

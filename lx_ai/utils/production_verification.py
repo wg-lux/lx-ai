@@ -281,12 +281,14 @@ def setup_django() -> None:
     try:
         from django.db import connection
 
-        with connection.cursor() as cursor:
-            cursor.execute("select current_database(), current_user")
-            database_name, database_user = cursor.fetchone()
+        connection.ensure_connection()
+
+        database_name = connection.settings_dict.get("NAME")
+        database_user = connection.settings_dict.get("USER")
 
         ok(
-            f"PostgreSQL connection works: database={database_name}, user={database_user}"
+            f"Django database connection works: "
+            f"database={database_name}, user={database_user}"
         )
         ok(f"Django vendor={connection.vendor}")
 
@@ -479,8 +481,7 @@ def verify_labelset(config: dict[str, Any], args: argparse.Namespace) -> None:
                 warn(f"Cannot map required labelset loader parameter: {name}")
 
         loaded = load_labelset_from_postgres(**kwargs)
-        size = len(loaded) if hasattr(loaded, "__len__") else None
-
+        size = len(loaded["labels"])
         if size == 0:
             fail(
                 f"No labels found for labelset_id={labelset_id}, "

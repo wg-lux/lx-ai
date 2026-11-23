@@ -1,155 +1,240 @@
 from __future__ import annotations
 
-from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
 from lx_ai.utils import db_loader_for_model_input as db_loader
+from lx_ai.integrations.endoreg_db.exceptions import (
+    EndoRegDBCompatibilityError,
+)
 
 
-class TestDbLoaderEnvironment:
-    def _clean_password_env(self, monkeypatch) -> None:
-        # clears all password env vars so tests do not depend on developer or CI shell
-        for key in (
-            "DEV_DB_PASSWORD",
-            "DJANGO_DB_PASSWORD",
-            "DEV_DB_PASSWORD_FILE",
-            "DJANGO_DB_PASSWORD_FILE",
-        ):
-            monkeypatch.delenv(key, raising=False)
+@pytest.fixture
+def repository(monkeypatch):
+    """Provide a mocked ORM repository."""
 
-    def test_first_env_returns_first_existing_value(self, monkeypatch) -> None:
-        # checks first non empty env value is returned
-        monkeypatch.setenv("FIRST_TEST_ENV", "abc")
-        monkeypatch.setenv("SECOND_TEST_ENV", "def")
+    mock_repository = Mock()
 
-        value = db_loader._first_env("FIRST_TEST_ENV", "SECOND_TEST_ENV")
+    monkeypatch.setattr(
+        db_loader,
+        "get_database_repository",
+        lambda: mock_repository,
+    )
 
-        assert value == "abc"
+    return mock_repository
 
-    def test_first_env_skips_empty_values(self, monkeypatch) -> None:
-        # checks empty env value is ignored
-        monkeypatch.setenv("FIRST_TEST_ENV", "")
-        monkeypatch.setenv("SECOND_TEST_ENV", "def")
 
-        value = db_loader._first_env("FIRST_TEST_ENV", "SECOND_TEST_ENV")
+@pytest.fixture
+def postgres_connection(monkeypatch):
+    """Simulate an active PostgreSQL Django connection."""
 
-        assert value == "def"
+    monkeypatch.setattr(
+        db_loader,
+        "connection",
+        SimpleNamespace(vendor="postgresql"),
+    )
 
-    def test_first_env_returns_default_when_missing(self, monkeypatch) -> None:
-        # checks default is returned when env variables are missing
-        monkeypatch.delenv("MISSING_TEST_ENV", raising=False)
 
-        value = db_loader._first_env("MISSING_TEST_ENV", default="fallback")
+@pytest.fixture
+def sqlite_connection(monkeypatch):
+    """Simulate an active SQLite Django connection."""
 
-        assert value == "fallback"
+    monkeypatch.setattr(
+        db_loader,
+        "connection",
+        SimpleNamespace(vendor="sqlite"),
+    )
 
-    def test_get_password_prefers_dev_password(self, monkeypatch) -> None:
-        # checks DEV_DB_PASSWORD is preferred
-        monkeypatch.setenv("DEV_DB_PASSWORD", "local-secret")
-        monkeypatch.setenv("DJANGO_DB_PASSWORD", "service-secret")
 
-        assert db_loader._get_password() == "local-secret"
-
-    def test_get_password_uses_django_password_when_dev_missing(
-        self, monkeypatch
-    ) -> None:
-        # checks DJANGO_DB_PASSWORD is used when DEV_DB_PASSWORD is missing
-        monkeypatch.delenv("DEV_DB_PASSWORD", raising=False)
-        monkeypatch.setenv("DJANGO_DB_PASSWORD", "service-secret")
-
-        assert db_loader._get_password() == "service-secret"
-
-    def test_get_password_reads_password_file(
+class TestDatabaseLoader:
+    def test_load_annotations_delegates_to_repository(
         self,
-        tmp_path: Path,
-        monkeypatch,
-    ) -> None:
-        # checks password can be loaded from password file
-        self._clean_password_env(monkeypatch)
+        repository,
+    ):
+        expected = [
+            {"annotation_id": 100},
+            {"annotation_id": 101},
+        ]
 
-        password_file = tmp_path / "db_pwd"
-        password_file.write_text("file-secret\n", encoding="utf-8")
+        repository.get_annotations.return_value = expected
 
-        monkeypatch.setenv("DJANGO_DB_PASSWORD_FILE", str(password_file))
+        result = db_loader.load_annotations(
+            config=None,
+            dataset_id=10,
+        )
 
-        assert db_loader._get_password() == "file-secret"
+        assert result == expected
 
-    def test_get_password_raises_when_password_file_missing(
+        repository.get_annotations.assert_called_once_with(10)
+
+    def test_load_annotations_from_postgres(
         self,
-        tmp_path: Path,
-        monkeypatch,
-    ) -> None:
-        # checks missing password file raises clear error
-        self._clean_password_env(monkeypatch)
+        repository,
+        postgres_connection,
+    ):
+        expected = [{"annotation_id": 100}]
 
-        monkeypatch.setenv("DJANGO_DB_PASSWORD_FILE", str(tmp_path / "missing"))
+        repository.get_annotations.return_value = expected
 
-        with pytest.raises(RuntimeError, match="Password file"):
-            db_loader._get_password()
+        result = db_loader.load_annotations_from_postgres(
+            dataset_id=10,
+        )
 
-    def test_get_password_raises_when_nothing_is_configured(self, monkeypatch) -> None:
-        # checks error is raised when no password source exists
-        self._clean_password_env(monkeypatch)
+        assert result == expected
 
-        with pytest.raises(RuntimeError, match="No database password found"):
-            db_loader._get_password()
+        repository.get_annotations.assert_called_once_with(10)
 
-    def test_get_db_connection_kwargs_uses_dev_values(self, monkeypatch) -> None:
-        # checks connection kwargs are built from DEV_DB values
-        monkeypatch.setenv("DEV_DB_HOST", "localhost")
-        monkeypatch.setenv("DEV_DB_PORT", "5433")
-        monkeypatch.setenv("DEV_DB_NAME", "dev_db")
-        monkeypatch.setenv("DEV_DB_USER", "dev_user")
-        monkeypatch.setenv("DEV_DB_PASSWORD", "dev_password")
-        monkeypatch.setenv("DEV_DB_SSLMODE", "disable")
+    def test_load_annotations_from_sqlite(
+        self,
+        repository,
+        sqlite_connection,
+    ):
+        expected = [{"annotation_id": 100}]
 
-        kwargs = db_loader._get_db_connection_kwargs()
+        repository.get_annotations.return_value = expected
 
-        assert kwargs == {
-            "host": "localhost",
-            "port": 5433,
-            "dbname": "dev_db",
-            "user": "dev_user",
-            "password": "dev_password",
-            "sslmode": "disable",
+        result = db_loader.load_annotations_from_sqlite(
+            dataset_id=10,
+        )
+
+        assert result == expected
+
+        repository.get_annotations.assert_called_once_with(10)
+
+    def test_load_labelset_from_postgres(
+        self,
+        repository,
+        postgres_connection,
+    ):
+        expected = {
+            "id": 5,
+            "version": 1,
+            "labels": [
+                {"id": 1, "name": "polyp"},
+                {"id": 2, "name": "normal"},
+            ],
         }
 
-    def test_get_db_connection_kwargs_falls_back_to_django_values(
+        repository.get_labelset.return_value = expected
+
+        result = db_loader.load_labelset_from_postgres(
+            labelset_id=5,
+            labelset_version=1,
+        )
+
+        assert result == expected
+
+        repository.get_labelset.assert_called_once_with(
+            labelset_id=5,
+            labelset_version=1,
+        )
+
+    def test_load_labelset_from_sqlite(
         self,
-        monkeypatch,
-    ) -> None:
-        # checks connection kwargs can use DJANGO_DB values for service mode
-        for key in (
-            "DEV_DB_HOST",
-            "DEV_DB_PORT",
-            "DEV_DB_NAME",
-            "DEV_DB_USER",
-            "DEV_DB_PASSWORD",
-            "DEV_DB_SSLMODE",
+        repository,
+        sqlite_connection,
+    ):
+        expected = {
+            "id": 5,
+            "version": 1,
+            "labels": [
+                {"id": 1, "name": "polyp"},
+            ],
+        }
+
+        repository.get_labelset.return_value = expected
+
+        result = db_loader.load_labelset_from_sqlite(
+            labelset_id=5,
+            labelset_version=1,
+        )
+
+        assert result == expected
+
+        repository.get_labelset.assert_called_once_with(
+            labelset_id=5,
+            labelset_version=1,
+        )
+
+
+class TestDatabaseBackendCompatibility:
+    def test_postgres_loader_rejects_sqlite_connection(
+        self,
+        repository,
+        sqlite_connection,
+    ):
+        with pytest.raises(
+            EndoRegDBCompatibilityError,
+            match="requires postgresql",
         ):
-            monkeypatch.delenv(key, raising=False)
+            db_loader.load_annotations_from_postgres(
+                dataset_id=10,
+            )
 
-        monkeypatch.setenv("DJANGO_DB_HOST", "service-host")
-        monkeypatch.setenv("DJANGO_DB_PORT", "5432")
-        monkeypatch.setenv("DJANGO_DB_NAME", "service_db")
-        monkeypatch.setenv("DJANGO_DB_USER", "service_user")
-        monkeypatch.setenv("DJANGO_DB_PASSWORD", "service_password")
-        monkeypatch.setenv("DJANGO_DB_SSLMODE", "prefer")
+        repository.get_annotations.assert_not_called()
 
-        kwargs = db_loader._get_db_connection_kwargs()
+    def test_sqlite_loader_rejects_postgres_connection(
+        self,
+        repository,
+        postgres_connection,
+    ):
+        with pytest.raises(
+            EndoRegDBCompatibilityError,
+            match="requires sqlite",
+        ):
+            db_loader.load_annotations_from_sqlite(
+                dataset_id=10,
+            )
 
-        assert kwargs["host"] == "service-host"
-        assert kwargs["port"] == 5432
-        assert kwargs["dbname"] == "service_db"
-        assert kwargs["user"] == "service_user"
-        assert kwargs["password"] == "service_password"
-        assert kwargs["sslmode"] == "prefer"
+        repository.get_annotations.assert_not_called()
 
-    def test_get_db_connection_kwargs_rejects_invalid_port(self, monkeypatch) -> None:
-        # checks invalid database port raises clear error
-        monkeypatch.setenv("DEV_DB_PORT", "not-an-int")
-        monkeypatch.setenv("DEV_DB_PASSWORD", "secret")
+    def test_postgres_labelset_rejects_sqlite_connection(
+        self,
+        repository,
+        sqlite_connection,
+    ):
+        with pytest.raises(
+            EndoRegDBCompatibilityError,
+            match="requires postgresql",
+        ):
+            db_loader.load_labelset_from_postgres(
+                labelset_id=5,
+                labelset_version=1,
+            )
 
-        with pytest.raises(RuntimeError, match="Invalid database port"):
-            db_loader._get_db_connection_kwargs()
+        repository.get_labelset.assert_not_called()
+
+    def test_sqlite_labelset_rejects_postgres_connection(
+        self,
+        repository,
+        postgres_connection,
+    ):
+        with pytest.raises(
+            EndoRegDBCompatibilityError,
+            match="requires sqlite",
+        ):
+            db_loader.load_labelset_from_sqlite(
+                labelset_id=5,
+                labelset_version=1,
+            )
+
+        repository.get_labelset.assert_not_called()
+
+
+def test_public_exports():
+    """Verify that existing public loader names remain available."""
+
+    expected_exports = {
+        "load_annotations",
+        "load_annotations_from_postgres",
+        "load_annotations_from_sqlite",
+        "load_labelset_from_postgres",
+        "load_labelset_from_sqlite",
+    }
+
+    assert set(db_loader.__all__) == expected_exports
+
+    for name in expected_exports:
+        assert callable(getattr(db_loader, name))
