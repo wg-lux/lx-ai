@@ -171,7 +171,8 @@ class DjangoORMRepository:
             # Do not use get_labels_in_order(), because the
             # current EndoRegDB implementation sorts by name.
 
-            labels = labelset.labels.all().order_by("pk")
+            # labels = labelset.labels.all().order_by("pk")
+            labels = labelset.labels.all().order_by("id")
 
             label_data = [
                 {

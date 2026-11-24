@@ -13,9 +13,6 @@ from endoreg_db.utils.filesystem.file_operations import (
     safe_unlink_file,
 )
 
-from lx_ai.integrations.endoreg_db.media.encryption_adapter import (
-    plaintext_field_file_path,
-)
 
 if TYPE_CHECKING:
     from endoreg_db.models import VideoFile
@@ -106,9 +103,11 @@ def _materialized_plaintext_field_file_for_lxai(
 def plaintext_processed_video_path(video: VideoFile) -> Iterator[Path]:
     """Yield an FFmpeg-readable processed video path.
 
-    EndoRegDB owns encryption, storage access and plaintext
-    materialization. LX-AI only consumes the resulting path.
+    Plaintext local files are reused.
+    Encrypted files are materialized through EndoRegDB storage streaming.
+    Temporary plaintext files are cleaned up automatically.
     """
+
     processed_file = getattr(video, "processed_file", None)
 
     if not processed_file or not getattr(processed_file, "name", None):
@@ -122,18 +121,34 @@ def plaintext_processed_video_path(video: VideoFile) -> Iterator[Path]:
 
     source_path = _resolve_processed_video_source_path(video)
 
-    # Reuse an existing local plaintext artifact.
-    if source_path is not None and source_path.exists():
+    # Do not send an encrypted local file directly to FFmpeg.
+    source_is_encrypted = _field_file_is_encrypted(video, source_path)
+
+    # Reuse only an existing plaintext file.
+    if source_path is not None and source_path.exists() and not source_is_encrypted:
         yield source_path
         return
 
-    # Otherwise delegate materialization/decryption to EndoRegDB.
+    # Preserve the prototype's encryption-key requirement.
+    if source_is_encrypted or source_path is None or not source_path.exists():
+        _require_encryption_key_for_video(video)
+
     suffix = Path(str(processed_file.name)).suffix or ".mp4"
 
-    with plaintext_field_file_path(
+    # Preserve the configured plaintext temporary directory
+    # and the original automatic cleanup behavior.
+    with _materialized_plaintext_field_file_for_lxai(
         processed_file,
         suffix=suffix,
+        prefix=f"lx-ai-video-{video.pk}-",
     ) as plaintext_path:
+        # Fail safely if EndoRegDB did not return decrypted bytes.
+        if _path_is_encrypted(plaintext_path):
+            raise RuntimeError(
+                "EndoRegDB returned encrypted video content instead "
+                f"of plaintext for video_id={video.pk}."
+            )
+
         yield plaintext_path
 
 

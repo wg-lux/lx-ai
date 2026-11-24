@@ -648,7 +648,7 @@ def build_image_multilabel_dataset(
         labels=labels_in_order,
         labelset=labelset,
         frame_ids=frame_ids,
-        old_examination_ids=old_examination_ids,
+        old_examination_ids=old_examination_ids,  # optional
         dataset_ids_per_frame=dataset_ids_per_frame,
         video_ids=video_ids,
         annotators_per_frame=annotators_per_frame,

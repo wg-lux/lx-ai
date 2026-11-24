@@ -1,9 +1,8 @@
 from __future__ import annotations
-
+from pydantic import field_validator, model_validator
 import os
 from pathlib import Path
 
-from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,6 +40,17 @@ class AppConfig(BaseSettings):
     conf_dir: Path = Path("conf")
     frame_dir: Path = Path("data/frames")
     log_level: str = "INFO"
+
+    @field_validator("db_password_file", mode="before")
+    @classmethod
+    def normalize_secret_file(cls, value):
+        if value is None:
+            return None
+
+        if isinstance(value, str) and not value.strip():
+            return None
+
+        return value
 
     @model_validator(mode="after")
     def validate_runtime_configuration(self) -> AppConfig:

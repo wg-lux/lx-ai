@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from lx_ai.integrations.endoreg_db.contracts import FrameMaterializer
 
 
 def ensure_training_frames_available(
@@ -11,6 +12,7 @@ def ensure_training_frames_available(
     fps: float | None = 50.0,
     ext: str = "jpg",
     overwrite: bool = True,
+    materializer: FrameMaterializer | None = None,
 ) -> list[dict[str, Any]]:
     annotation_ids = [
         int(ann["annotation_id"])
@@ -45,9 +47,14 @@ def ensure_training_frames_available(
         flush=True,
     )"""
 
-    media_adapter = EndoRegDBMediaAdapter()
+    if materializer is None:
+        from lx_ai.integrations.endoreg_db.media import (
+            EndoRegDBMediaAdapter,
+        )
 
-    path_by_annotation_id = media_adapter.materialize_frames(
+        materializer = EndoRegDBMediaAdapter()
+
+    path_by_annotation_id = materializer.materialize_frames(
         annotation_ids=annotation_ids,
         output_root=output_root,
         fps=fps,
