@@ -45,10 +45,8 @@ def _default_django_settings_module() -> str:
     )
 
 
-os.environ.setdefault(
-    "DJANGO_SETTINGS_MODULE",
-    _default_django_settings_module(),
-)
+if not os.getenv("DJANGO_SETTINGS_MODULE", "").strip():
+    os.environ["DJANGO_SETTINGS_MODULE"] = _default_django_settings_module()
 
 
 # =============================================================================
