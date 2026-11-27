@@ -8,7 +8,7 @@ from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
 
 from endoreg_db.utils.encryption.encrypted import MAGIC
-from endoreg_db.utils.filesystem.file_operations import (
+from endoreg_db.utils.file_operations import (
     ensure_directory,
     safe_unlink_file,
 )
@@ -162,11 +162,13 @@ def materialize_frames_for_lxai_annotations(
     overwrite: bool = False,
 ) -> dict[int, str]:
     from endoreg_db.export.frames.export_frames_with_labels import (
-        _assert_video_media_export_ready,
         _extract_and_move_transcoded_frames,
         _frame_pk_filename,
     )
     from endoreg_db.models import ImageClassificationAnnotation, VideoFile
+    from endoreg_db.services.media.export_policy import (
+        assert_video_media_export_ready,
+    )
 
     """
     lx-ai owned frame materialization bridge.
@@ -202,7 +204,7 @@ def materialize_frames_for_lxai_annotations(
         return {}
 
     for video in VideoFile.objects.filter(pk__in=video_frame_pks.keys()).order_by("pk"):
-        _assert_video_media_export_ready(video)
+        assert_video_media_export_ready(video)
 
         frame_dir = ensure_directory(root / f"video_{video.pk}")
         # tmp_dir = ensure_directory(frame_dir / f"lx_ai_transcode_tmp_{uuid.uuid4().hex}")
