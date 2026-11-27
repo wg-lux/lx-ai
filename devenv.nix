@@ -11,6 +11,18 @@ let
   python = pkgs.python312; # known devenv issue with python3Packages since python3Full was deprecated
   uvPackage = pkgs.uv;
 
+  # endoreg-db resolves every runtime path from one absolute LX_RUNTIME_ROOT
+  # and refuses relative roots. In production it must point at the
+  # lx-annotate-owned root so protected media resolves identically.
+  configuredRuntimeRoot = config.secretspec.secrets.LX_RUNTIME_ROOT or "";
+  runtimeRoot =
+    if configuredRuntimeRoot == "" then
+      "${config.devenv.root}/data"
+    else if lib.hasPrefix "/" configuredRuntimeRoot then
+      configuredRuntimeRoot
+    else
+      throw "LX_RUNTIME_ROOT must be an absolute filesystem path";
+
   buildInputs = with pkgs; [
     python312
     stdenv.cc.cc
@@ -36,6 +48,8 @@ let
   ];
 
   baseEnv = {
+    LX_RUNTIME_ROOT = runtimeRoot;
+
     FRAME_DIR = config.secretspec.secrets.FRAME_DIR;
 
     TRAINING_CONFIG_PATH = config.secretspec.secrets.TRAINING_CONFIG_PATH;
@@ -134,6 +148,13 @@ in
       set -euo pipefail
       source .devenv/state/venv/bin/activate
       secretspec run --provider env -- uv run python lx_ai/scripts/prepare_runtime_assets.py
+    '';
+
+    # Explicitly create the endoreg-db runtime topology under LX_RUNTIME_ROOT
+    # for local development. Production roots are provisioned by lx-annotate.
+    provision-runtime.exec = ''
+      set -euo pipefail
+      .devenv/state/venv/bin/python -c "from endoreg_db.utils.paths import get_runtime_paths; get_runtime_paths().ensure_directories()"
     '';
 
     lxai_training.exec = ''

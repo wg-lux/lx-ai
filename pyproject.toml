@@ -18,8 +18,8 @@ dependencies = [
   "numpy>=2.3.5",
   "torchvision==0.20.1",
   "psycopg[binary]>=3.3.2",
-  "endoreg-db",
-  "lx-dtypes>=0.1.5",
+  "endoreg-db==1.9.2",
+  "lx-dtypes>=0.7.6",
   "gdown>=5.2.0",
   "pytest-xdist>=3.8.0",
   "pytest-cov>=7.0.0",
@@ -153,22 +153,6 @@ environments = [
 
 ]
 
-conflicts = [
-  [
-    { package = "endoreg-db" },
-    { package = "lx-dtypes", extra = "dev" },
-  ],
-]
-
-[tool.uv.workspace]
-members = [
-    "libs/lx-data-models",
-    "libs/endoreg-db",
-]
-
-[tool.uv.sources]
-lx-dtypes = { workspace = true }
-endoreg-db = { workspace = true }
 
 [tool.coverage.run]
 omit = [

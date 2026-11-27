@@ -6,22 +6,25 @@ from lx_ai.utils.frame_materializer import ensure_training_frames_available
 def test_frame_materializer_reuses_same_frame_path_for_multilabel_annotations(
     monkeypatch, tmp_path
 ):
-    def fake_materialize_frames_for_lxai_annotations(
-        *, annotation_ids, output_root, fps, ext, overwrite
-    ):
-        assert annotation_ids == [101, 102]
-        return {
-            101: str(tmp_path / "video_2" / "frame_55.jpg"),
-            102: str(tmp_path / "video_2" / "frame_55.jpg"),
-        }
+    class FakeMaterializer:
+        def materialize_frames(
+            self,
+            *,
+            annotation_ids,
+            output_root,
+            fps,
+            ext="jpg",
+            quality=2,
+            overwrite=False,
+        ):
+            assert annotation_ids == [101, 102]
+            return {
+                101: str(tmp_path / "video_2" / "frame_55.jpg"),
+                102: str(tmp_path / "video_2" / "frame_55.jpg"),
+            }
 
-    import lx_ai.utils.endoregdb_encrypted_frame_bridge as bridge
-
-    monkeypatch.setattr(
-        bridge,
-        "materialize_frames_for_lxai_annotations",
-        fake_materialize_frames_for_lxai_annotations,
-    )
+        def plaintext_processed_video_path(self, video):
+            raise AssertionError("not used by frame materialization")
 
     annotations = [
         {"annotation_id": 101, "label_id": 1, "frame": {}},
@@ -35,6 +38,7 @@ def test_frame_materializer_reuses_same_frame_path_for_multilabel_annotations(
         fps=50.0,
         ext="jpg",
         overwrite=False,
+        materializer=FakeMaterializer(),
     )
 
     assert (
